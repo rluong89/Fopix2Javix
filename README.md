@@ -23,5 +23,6 @@ Première séance lundi 4 janvier.
 
 Votre éditeur favori pour tout cela. Un emacs (me) suffit bien, mais les usines à gaz comme idea ou vscode sont possibles également. Attention néanmoins à bien passer par `sbt`, pour rester compatible.
 
+## Documents ##
 
-
+- [Séance 1](doc/seance1.md)
