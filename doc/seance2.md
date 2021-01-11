@@ -7,7 +7,7 @@ Fopix est le langage maison qui nous servira de point de départ.
 
  - [l'AST de Fopix](../src/main/scala/trac/fopix/FopixAST.scala) et ses constructions
 
- - la syntaxe concrète : voir [exemples](../examples), ou les [PrettyPrint](../code/fopix/FopixPP.scala) et [Parser](../code/fopix/FopixParser.scala) fournis
+ - la syntaxe concrète : voir [exemples](../examples), ou les [PrettyPrint](../src/main/scala/trac/fopix/FopixPP.scala) et [Parser](../src/main/scala/trac/fopix/FopixParser.scala) fournis
 
  - caractéristiques principales :
    - des fonctions récursives générales, pas d'application partielle
@@ -20,5 +20,5 @@ Fopix est le langage maison qui nous servira de point de départ.
 ### TP2 ###
 
  - Prise en main du compilateur `flap`, de son architecture, de ses options
- - Commencer à compléter [FopixInterp](../code/fopix/FopixInterp.scala), l'interpréteur de Fopix
+ - Commencer à compléter [FopixInterp](../src/main/scala/trac/fopix/FopixInterp.scala), l'interpréteur de Fopix
  - Quels sont les choix de *sémantique* à effectuer pour cet interpréteur ? Proposer votre choix favori et me demander pour confirmation.
