@@ -19,6 +19,6 @@ Fopix est le langage maison qui nous servira de point de départ.
 
 ### TP2 ###
 
- - Prise en main du compilateur `flap`, de son architecture, de ses options
+ - Prise en main du compilateur `trac`, de son architecture, de ses options
  - Commencer à compléter [FopixInterp](../src/main/scala/trac/fopix/FopixInterp.scala), l'interpréteur de Fopix
  - Quels sont les choix de *sémantique* à effectuer pour cet interpréteur ? Proposer votre choix favori et me demander pour confirmation.
