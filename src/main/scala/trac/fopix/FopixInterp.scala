@@ -83,7 +83,9 @@ def eval(env:Env,e:Expr) : Result =
     case Fun(f) => RFun(f,List())
     case Op(o,e1,e2) => binop(o,eval(env,e1),eval(env,e2))    
     case If(e1,e2,e3) => throw new Invalid("TODO")
-    case Let(x,e1,e2) => throw new Invalid("TODO")
+    case Let(x,e1,e2) => 
+      val new_env = env + (x -> eval(env, e1)) 
+      eval(new_env, e2)
     case Prim(p,l) => prim(p,l.map(eval(env,_)))
     case Call(e,l) => throw new Invalid("TODO")
   }
@@ -100,8 +102,10 @@ def binop(o:BinOp.T,r1:Result,r2:Result) : Result = {
 
 def prim(p:PrimOp.T,args:List[Result]) : Result =
  (p,args) match {
+   //case (Tuple, List())
    case (Printint,List(RInt(n))) => allPrints = n.toString :: allPrints; RUnit
    case (Printstr,List(RStr(s))) => allPrints = s :: allPrints; RUnit
+   case (Cat, List(RStr(s1), RStr(s2))) => RStr(s1 + s2)
    case _ => throw new Invalid("Unsupported primitive call (TODO ? bad arg ?)")
  }
 
