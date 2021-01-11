@@ -5,7 +5,7 @@ Fopix est le langage maison qui nous servira de point de départ.
 
 ### Le cours 2 : Visite guidée de Fopix ###
 
- - [l'AST de Fopix](../code/fopix/FopixAST.scala) et ses constructions
+ - [l'AST de Fopix](../src/main/scala/trac/fopix/FopixAST.scala) et ses constructions
 
  - la syntaxe concrète : voir [exemples](../examples), ou les [PrettyPrint](../code/fopix/FopixPP.scala) et [Parser](../code/fopix/FopixParser.scala) fournis
 

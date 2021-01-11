@@ -29,3 +29,4 @@ Votre éditeur favori pour tout cela. Un emacs (me) suffit bien, mais les usines
 ## Documents ##
 
 - [Séance 1](doc/seance1.md)
+- [Séance 2](doc/seance2.md)
