@@ -14,6 +14,9 @@ Voir la [présentation](doc/presentation.md) lors de la réunion de décembre.
 Lundi 13h-16h, pour l'instant en distanciel sur [BBB](https://bbb-front.math.univ-paris-diderot.fr/recherche/pie-nwx-jho-ymf).
 Première séance lundi 4 janvier.
 
+Mailing-list du cours : `m2-transfprog@listes.univ-paris-diderot.fr`.
+[Lien d'inscription](https://listes.univ-paris-diderot.fr/wws/subscribe/m2-transfprog) si vous ne l'avez pas été automatiquement.
+
 ## Prérequis logiciel ##
 
 - [sbt](https://www.scala-sbt.org/) (simple build tool)
