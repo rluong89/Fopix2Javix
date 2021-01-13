@@ -125,14 +125,31 @@ object Interp {
     else
       RBool(CompOp.eval(BinOp.toCmp(o), n1, n2))
   }
-
+//case class RBlk(a: Address) extends Result
+//// Create a new array, with unspecified initial content.
+  // Expects one argument : the integer size of the array to create
+  //val New : T = Value("new")
+  // Read one cell of an array.
+  // Expects two arguments : the array, the integer index where to read
+  //val Get : T = Value("get")
   def prim(p: PrimOp.T, args: List[Result]): Result =
     (p, args) match {
-      //case (Tuple, List())
       case (Printint, List(RInt(n))) =>
         allPrints = n.toString :: allPrints; RUnit
       case (Printstr, List(RStr(s)))       => allPrints = s :: allPrints; RUnit
       case (Cat, List(RStr(s1), RStr(s2))) => RStr(s1 + s2)
+      case (New, List(RInt(i))) =>
+        val res = RBlk(i)
+        val array: Array[Result] = new Array[Result](i)
+        mem += (i -> array)
+        memsize = memsize + 1
+        res
+      case (Get, List(RBlk(a), RInt(i))) =>
+        val optionalR = mem.get(a)
+        optionalR match {
+          case None        => throw new Invalid("Array does not exist")
+          case Some(array) => array(i)
+        }
       case _ =>
         throw new Invalid("Unsupported primitive call (TODO ? bad arg ?)")
     }
