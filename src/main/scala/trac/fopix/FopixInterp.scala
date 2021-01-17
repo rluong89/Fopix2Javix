@@ -68,18 +68,25 @@ object Interp {
   def eval(p: Program): String = {
     reset()
     val initEnv: Env = Map.empty
-    val initFunEnv: FunEnv = Map.empty
+    val initFunEnv: FunEnv = evalFun(Map.empty, p)
     eval(initEnv, initFunEnv, p)
     StringContext.processEscapes(allPrints.reverse.mkString)
   }
 
-  def eval(env: Env, funEnv: FunEnv, p: Program): Env =
+  def evalFun(funEnv: FunEnv, p: Program): FunEnv =
     p match {
-      case Nil            => env
-      case Val(x, e) :: p => eval(env + (x -> eval(env, funEnv, e)), funEnv, p)
+      case Nil            => funEnv
+      case Val(_, _) :: p => evalFun(funEnv, p)
       case Def(fid, args, e) :: p =>
         val newFunEnv = funEnv + (fid -> (args, e))
-        eval(env, newFunEnv, p)
+        evalFun(newFunEnv, p)
+    }
+
+  def eval(env: Env, funEnv: FunEnv, p: Program): Env =
+    p match {
+      case Nil               => env
+      case Val(x, e) :: p    => eval(env + (x -> eval(env, funEnv, e)), funEnv, p)
+      case Def(_, _, _) :: p => eval(env, funEnv, p)
     }
 
   def eval(env: Env, funEnv: FunEnv, e: Expr): Result =
