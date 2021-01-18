@@ -13,7 +13,24 @@ Visite guidée:
 
  - Un [interpréteur pas-à-pas](../src/main/scala/trac/javix/JavixInterp.scala) fourni pour aider à la mise-au-point (cf. l'option `-trace` de Trap).
 
+Session de démo dans la console Scala:
+
+```scala
+import trac._
+import IntOp._
+import javix.AST._
+val codejavix = List(Push(6),Push(7),IOp(Add),IPrint,Return)
+val progjavix = Program("Test",codejavix,100,100)
+javix.PP.pp(progjavix)
+Trac.writeFile("Test.j",javix.PP.pp(progjavix))
+javix.Interp.eval(progjavix)
+javix.Interp.eval(progjavix,true)
+```
+
 ## Fopix2Javix : Compilation directe de Fopix vers Javix
+
+Première tâche pour le projet : écrire une traduction directe de Fopix vers Javix.
+A débuter dès aujourd'hui avec moi (TP3), au moins pour les parties faciles.
 
 #### Validateur JVM
 
