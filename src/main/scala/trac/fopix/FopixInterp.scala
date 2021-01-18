@@ -55,14 +55,20 @@ var allPrints : List[String] = List()
 var memsize = 0
 val mem : Memory = MutableMap.empty
 
+// Global table of functions, giving their parameter lists and their bodies
+type TableFun = MutableMap[FunIdent,(List[Ident],Expr)]
+val tblfun : TableFun = MutableMap.empty
+
 def reset () : Unit = {
   allPrints = List()
   memsize = 0
   mem.clear()
+  tblfun.clear()
 }
 
 def eval (p:Program) : String = {
   reset()
+  /* TODO: remplir tblfun avec tous les Def de fonctions du program */
   val initEnv : Env = Map.empty
   eval(initEnv,p)
   StringContext.processEscapes(allPrints.reverse.mkString)
@@ -85,7 +91,18 @@ def eval(env:Env,e:Expr) : Result =
     case If(e1,e2,e3) => throw new Invalid("TODO")
     case Let(x,e1,e2) => throw new Invalid("TODO")
     case Prim(p,l) => prim(p,l.map(eval(env,_)))
-    case Call(e,l) => throw new Invalid("TODO")
+    case Call(e,l) =>
+      /* /!\ Pour Call, voici du pseudo-code à finir :
+      val f = getFun (eval(env,e))  /* getfun à ecrire : va chercher dans un RFun */
+      val noms_param,corps = tblfun(f)
+      val param_concrets = l.map(eval(env,_))
+      val new_env = List.compose entre noms_param et param_concrets
+         /* Oui on jete completement env, les variables globales (les Val) ne sont pas
+          * accessibles depuis le corps d'une fonction, ni les variables locales d'une
+          * autre fonction */
+      eval(new_env,corps)
+      */
+      throw new Invalid("TODO")
   }
 
 def binop(o:BinOp.T,r1:Result,r2:Result) : Result = {
