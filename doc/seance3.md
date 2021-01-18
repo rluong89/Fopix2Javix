@@ -11,7 +11,7 @@ Visite guidée:
 
  - Le [pretty-printer de Javix](../src/main/scala/trac/javix/JavixPP.scala) fabrique pour vous des fichiers `.j` à destination de `jasmin`.
 
- - Un [interpréteur pas-à-pas](../src/main/scala/trac/javix/FopixInterp.scala) fourni pour aider à la mise-au-point (cf. l'option `-trace` de Trap).
+ - Un [interpréteur pas-à-pas](../src/main/scala/trac/javix/JavixInterp.scala) fourni pour aider à la mise-au-point (cf. l'option `-trace` de Trap).
 
 ## Fopix2Javix : Compilation directe de Fopix vers Javix
 
