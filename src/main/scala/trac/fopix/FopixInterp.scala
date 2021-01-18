@@ -50,6 +50,12 @@ object Interp {
       case _        => throw new Invalid(msg + " is not a boolean")
     }
 
+  def getFun(r: Result): FunIdent =
+    r match {
+      case RFun(f, _) => f
+      case _          => throw new Invalid("Can't find function")
+    }
+
 // NB: in RFun, args is empty unless you try to accept partial application
 // and over-applications
 
@@ -68,7 +74,7 @@ object Interp {
   def eval(p: Program): String = {
     reset()
     val initEnv: Env = Map.empty
-    val initFunEnv: FunEnv = evalFun(Map.empty, p)
+    val initFunEnv: FunEnv = Map.empty
     eval(initEnv, initFunEnv, p)
     StringContext.processEscapes(allPrints.reverse.mkString)
   }
@@ -84,9 +90,11 @@ object Interp {
 
   def eval(env: Env, funEnv: FunEnv, p: Program): Env =
     p match {
-      case Nil               => env
-      case Val(x, e) :: p    => eval(env + (x -> eval(env, funEnv, e)), funEnv, p)
-      case Def(_, _, _) :: p => eval(env, funEnv, p)
+      case Nil            => env
+      case Val(x, e) :: p => eval(env + (x -> eval(env, funEnv, e)), funEnv, p)
+      case Def(fid, args, e) :: p =>
+        val newFunEnv = funEnv + (fid -> (args, e))
+        eval(env, newFunEnv, p)
     }
 
   def eval(env: Env, funEnv: FunEnv, e: Expr): Result =
@@ -108,7 +116,8 @@ object Interp {
         val new_env = env + (x -> eval(env, funEnv, e1))
         eval(new_env, funEnv, e2)
       case Prim(p, l) => prim(p, l.map(eval(env, funEnv, _)))
-      case Call(Fun(fid), l) =>
+      case Call(expr, l) =>
+        val fid = getFun(eval(env, funEnv, expr))
         val funInfoOption = funEnv.get(fid)
         val (argsList, e) = funInfoOption match {
           case Some((args, e)) => (args, e)
@@ -117,10 +126,9 @@ object Interp {
         val zippedList = l zip argsList
         val newValEnv = zippedList.foldLeft(env)((accEnv, matchArgs) => {
           val evalArg = eval(env, funEnv, matchArgs._1)
-          env + (matchArgs._2 -> evalArg)
+          accEnv + (matchArgs._2 -> evalArg)
         })
         eval(newValEnv, funEnv, e)
-      case Call(e, l) => throw new Invalid("TODO")
     }
 
   def binop(o: BinOp.T, r1: Result, r2: Result): Result = {
@@ -132,13 +140,7 @@ object Interp {
     else
       RBool(CompOp.eval(BinOp.toCmp(o), n1, n2))
   }
-//case class RBlk(a: Address) extends Result
-//// Create a new array, with unspecified initial content.
-  // Expects one argument : the integer size of the array to create
-  //val New : T = Value("new")
-  // Read one cell of an array.
-  // Expects two arguments : the array, the integer index where to read
-  //val Get : T = Value("get")
+
   def prim(p: PrimOp.T, args: List[Result]): Result =
     (p, args) match {
       case (Printint, List(RInt(n))) =>
