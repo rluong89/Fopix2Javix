@@ -3,6 +3,8 @@ Notes de la séance 3 de TransProg M2
 
 ## Suite du travail sur FopixInterp
 
+NB: Pour valider vos choix de sémantique, j'ai mis en ligne un petit [interpréteur Fopix](http://www.irif.fr/~letouzey/fopix-interp) de référence (merci scalajs).
+
 ## Javix : Une idéalisation d'un fragment de la JVM
 
 Visite guidée:

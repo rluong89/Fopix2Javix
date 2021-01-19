@@ -22,3 +22,5 @@ Fopix est le langage maison qui nous servira de point de départ.
  - Prise en main du compilateur `trac`, de son architecture, de ses options
  - Commencer à compléter [FopixInterp](../src/main/scala/trac/fopix/FopixInterp.scala), l'interpréteur de Fopix
  - Quels sont les choix de *sémantique* à effectuer pour cet interpréteur ? Proposer votre choix favori et me demander pour confirmation.
+
+NB: Pour valider vos choix de sémantique, j'ai mis en ligne un petit [interpréteur Fopix](http://www.irif.fr/~letouzey/fopix-interp) de référence (merci scalajs).
