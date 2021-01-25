@@ -215,7 +215,7 @@ iadd  ; fini la compil de arg0
 
 #### Version corrigée de la mise en place des arguments ####
 
-````
+```
 ;; tout d'abord, archivage si besoin
 ;; puis : 
 ; compilation de arg0
