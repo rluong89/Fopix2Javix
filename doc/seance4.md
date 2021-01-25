@@ -6,6 +6,9 @@ Notes de la séance 4 de TransProg M2
 Première tâche pour le projet : écrire une traduction directe de Fopix vers Javix.
 A continuer dès aujourd'hui avec moi (TP4).
 
+Les [gribouillis du prof](seance4-live.md) en live pendant la séance 4, un peu reformatés.
+
+
 #### Validateur JVM
 
 Il est *normal* que le code Javix produit par Fopix2Javix soit
