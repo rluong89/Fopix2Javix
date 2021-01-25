@@ -30,3 +30,9 @@ Votre éditeur favori pour tout cela. Un emacs (me) suffit bien, mais les usines
 
 - [Séance 1](doc/seance1.md)
 - [Séance 2](doc/seance2.md)
+- [Séance 3](doc/seance3.md)
+- [Séance 4](doc/seance4.md)
+
+## Bibliographie et références
+
+Voir [biblio.md](doc/biblio.md)
