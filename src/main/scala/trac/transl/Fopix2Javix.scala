@@ -70,12 +70,22 @@ object Fopix2Javix {
 
   def compile_expr(e: S.Expr, env: Env): List[T.Instruction] = {
     e match {
-      case S.Num(n)        => List(T.Push(n))
-      case S.Str(s)        => List(T.Ldc(s))
-      case S.Var(v)        => List(T.ILoad(env(v)))
+      case S.Num(n) => List(T.Push(n))
+      case S.Str(s) => List(T.Ldc(s))
+      case S.Var(v) => List(T.ILoad(env(v)))
+      case S.If(e1, e2, e3) =>
+        val label_false = generateLabel("iffalse")
+        val label_if_end = generateLabel("ifend")
+        compile_expr(e1, env) ++ List(
+          T.If(BinOp.toCmp(BinOp.Eq), label_false)
+        ) ++ compile_expr(e2, env) ++
+          List(
+            T.Goto(label_if_end),
+            T.Labelize(label_false)
+          ) ++ compile_expr(e3, env) ++
+          List(T.Labelize(label_if_end))
+
       case S.Op(o, e1, e2) =>
-        /* code si o est un opérateur arithmetique
-         * TODO: que faire si o est une comparaison ? */
         if (isArith(o)) {
           compile_expr(e1, env) ++ compile_expr(e2, env) ++ List(
             T.IOp(BinOp.toArith(o))
