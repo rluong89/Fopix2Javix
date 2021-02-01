@@ -43,10 +43,10 @@ object Fopix2Javix {
         val optionX = env get (x)
         val (newInstruction, new_env) =
           optionX match {
-            case Some(value) => (T.IStore(value), env)
+            case Some(value) => (T.AStore(value), env)
             case None =>
               count += 1
-              (T.IStore(count), (env + (x -> count)))
+              (T.AStore(count), (env + (x -> count)))
           }
         instructions ++ List(newInstruction) ++
           (compile_definitions(p, new_env))
@@ -70,13 +70,14 @@ object Fopix2Javix {
 
   def compile_expr(e: S.Expr, env: Env): List[T.Instruction] = {
     e match {
-      case S.Num(n) => List(T.Push(n))
+      case S.Num(n) => List(T.Push(n), T.Box)
       case S.Str(s) => List(T.Ldc(s))
-      case S.Var(v) => List(T.ILoad(env(v)))
+      case S.Var(v) => List(T.ALoad(env(v)))
       case S.If(e1, e2, e3) =>
         val label_false = generateLabel("iffalse")
         val label_if_end = generateLabel("ifend")
         compile_expr(e1, env) ++ List(
+          T.Unbox,
           T.If(BinOp.toCmp(BinOp.Eq), label_false)
         ) ++ compile_expr(e2, env) ++
           List(
@@ -87,25 +88,31 @@ object Fopix2Javix {
 
       case S.Op(o, e1, e2) =>
         if (isArith(o)) {
-          compile_expr(e1, env) ++ compile_expr(e2, env) ++ List(
-            T.IOp(BinOp.toArith(o))
-          )
+          compile_expr(e1, env) ++ List(T.Unbox) ++ compile_expr(e2, env) ++
+            List(
+              T.Unbox,
+              T.IOp(BinOp.toArith(o)),
+              T.Box
+            )
         } else {
           val label_true = generateLabel("booleantrue")
           val label_end = generateLabel("booleanend")
-          compile_expr(e1, env) ++ compile_expr(e2, env) ++ List(
-            T.Ificmp(BinOp.toCmp(o), label_true),
-            T.Push(0),
-            T.Goto(label_end),
-            T.Labelize(label_true),
-            T.Push(1),
-            T.Labelize(label_end)
-          )
+          compile_expr(e1, env) ++ List(T.Unbox) ++
+            compile_expr(e2, env) ++ List(
+              T.Unbox,
+              T.Ificmp(BinOp.toCmp(o), label_true),
+              T.Push(0),
+              T.Goto(label_end),
+              T.Labelize(label_true),
+              T.Push(1),
+              T.Labelize(label_end),
+              T.Box
+            )
         }
 
       /* Un exemple de primitif : le print_int */
       case S.Prim(Printint, List(e1)) =>
-        compile_expr(e1, env) ++ List(T.IPrint, T.Push(0))
+        compile_expr(e1, env) ++ List(T.Unbox, T.IPrint, T.Push(0), T.Box)
       /* Push(0) correspond au résultat de type unit du print_int */
       case _ => List() // TODO : traiter tous les cas manquants !
     }
