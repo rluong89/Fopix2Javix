@@ -4,6 +4,8 @@
 
 package trac.transl
 
+import java.util.UUID
+
 object Fopix2Javix {
 
   import trac._
@@ -62,6 +64,10 @@ object Fopix2Javix {
    *    pile ==> pile,v  avec v la valeur résultat de l'évaluation de e
    */
 
+  def generateLabel(s: String): String = {
+    s + "_" + UUID.randomUUID().toString
+  }
+
   def compile_expr(e: S.Expr, env: Env): List[T.Instruction] = {
     e match {
       case S.Num(n)        => List(T.Push(n))
@@ -70,9 +76,23 @@ object Fopix2Javix {
       case S.Op(o, e1, e2) =>
         /* code si o est un opérateur arithmetique
          * TODO: que faire si o est une comparaison ? */
-        compile_expr(e1, env) ++ compile_expr(e2, env) ++ List(
-          T.IOp(BinOp.toArith(o))
-        )
+        if (isArith(o)) {
+          compile_expr(e1, env) ++ compile_expr(e2, env) ++ List(
+            T.IOp(BinOp.toArith(o))
+          )
+        } else {
+          val label_true = generateLabel("booleantrue")
+          val label_end = generateLabel("booleanend")
+          compile_expr(e1, env) ++ compile_expr(e2, env) ++ List(
+            T.Ificmp(BinOp.toCmp(o), label_true),
+            T.Push(0),
+            T.Goto(label_end),
+            T.Labelize(label_true),
+            T.Push(1),
+            T.Labelize(label_end)
+          )
+        }
+
       /* Un exemple de primitif : le print_int */
       case S.Prim(Printint, List(e1)) =>
         compile_expr(e1, env) ++ List(T.IPrint, T.Push(0))
