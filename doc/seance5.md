@@ -5,9 +5,31 @@ Notes de la séance 5 de TransProg M2
 
 #### Exemples complets : fact et factopt
 
+Les [gribouillis du prof](seance5-live.md) en live pendant la séance 5, un peu reformatés.
+
+#### Booléens seuls, If sans comparaisons
+
+Il est suggéré de coder les booléens comme des entiers, par exemple
+0 pour faux et 1 pour vrai.
+
+Pour un `If(e1,e2,e3)` avec `e1` qui n'est pas directement un
+`Op(cmp,...,...)`, la compilation de e1 doit à l'exécution mettre un
+entier 0 ou 1 sur la pile, et donc ce `If` peut être traduit en une
+comparaison de cet entier avec 0 ou 1 (via un `Ificmp` ou mieux un
+`If` de Javix, celui qui compare un entier et 0).
+
+Et pour un `Op(cmp,...,...)` sans `If` autour de lui, c'est l'inverse,
+il faudra le compiler comme une instruction mettant 0 ou 1 sur la
+pile, là encore via un `Ificmp` dont les blocs suivants "then" et
+"else" seraient des `Push(1);Box` et `Push(0);Box`.
+
 #### Appel de fonction indirect
 
+Cf le premier lien ci-dessus.
+
 #### Appels recursifs terminaux (tail calls)
+
+Cf le premier lien ci-dessus.
 
 Si le code de la fonction `f` se termine par un appel à une autre
 fonction `g` (qui peut être `f` de nouveau en cas de récursion),
