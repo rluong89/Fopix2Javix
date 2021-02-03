@@ -109,9 +109,14 @@ object Fopix2Javix {
               T.Box
             )
         }
-
+        case S.Let(id, e1, e2) => 
+          /*RICHARD*/
+      case S.Fun(fid) => 
+          /*RICHARD DIRECT*/
+          /*YASSINE INDIRECT*/
       /* Un exemple de primitif : le print_int */
       case S.Prim(Printint, List(e1)) =>
+      /*RICHARD*/
         compile_expr(e1, env) ++ List(T.Unbox, T.IPrint, T.Push(0), T.Box)
       /* Push(0) correspond au résultat de type unit du print_int */
       case _ => List() // TODO : traiter tous les cas manquants !
