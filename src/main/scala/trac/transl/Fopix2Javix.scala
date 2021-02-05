@@ -39,12 +39,14 @@ object Fopix2Javix {
     p match {
       case Nil => List()
       case S.Val(x, e) :: p =>
+      print("haha")
         val instructions = compile_expr(e, env)
         val optionX = env get (x)
         val (newInstruction, new_env) =
           optionX match {
             case Some(value) => (T.AStore(value), env)
             case None =>
+              print("zoulou")
               count += 1
               (T.AStore(count), (env + (x -> count)))
           }
@@ -54,7 +56,6 @@ object Fopix2Javix {
       case S.Def(_, _, _) :: p => compile_definitions(p, env)
     }
   }
-
   /* TODO: ajouter une structure d'environnement des variables,
    * du genre Map[S.Ident,T.Var] donnant le numéro de la variable Javix
    * correspondant à un nom de variable Fopix */
@@ -71,7 +72,7 @@ object Fopix2Javix {
   def compile_expr(e: S.Expr, env: Env): List[T.Instruction] = {
     e match {
       case S.Num(n) => List(T.Push(n), T.Box)
-      case S.Str(s) => List(T.Ldc(s))
+      case S.Str(s) => val _ = print("vergil");List(T.Ldc(s))
       case S.Var(v) => List(T.ALoad(env(v)))
       case S.If(e1, e2, e3) =>
         val label_false = generateLabel("iffalse")
@@ -109,15 +110,29 @@ object Fopix2Javix {
               T.Box
             )
         }
-        case S.Let(id, e1, e2) => 
+      case S.Let(id, e1, e2) => 
+        val current_count = count
+        val new_env = (env + (id -> current_count))
+        count += 1
+        compile_expr(e1, env) ++ List(T.AStore(current_count)) ++ 
+        compile_expr(e2, new_env)
+
           /*RICHARD*/
       case S.Fun(fid) => 
+      List()
           /*RICHARD DIRECT*/
           /*YASSINE INDIRECT*/
       /* Un exemple de primitif : le print_int */
       case S.Prim(Printint, List(e1)) =>
       /*RICHARD*/
         compile_expr(e1, env) ++ List(T.Unbox, T.IPrint, T.Push(0), T.Box)
+      case S.Prim(Printstr, List(e1)) =>
+      /*RICHARD*/
+        compile_expr(e1, env) ++ List(T.SPrint, T.Push(0))
+
+      case S.Prim(Cat, List(e1, e2)) =>
+        print("CAT");compile_expr(e1, env) ++  compile_expr(e2, env) ++ List(T.SCat)
+      /*RICHARD*/
       /* Push(0) correspond au résultat de type unit du print_int */
       case _ => List() // TODO : traiter tous les cas manquants !
     }
