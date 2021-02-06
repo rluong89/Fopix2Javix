@@ -67,6 +67,16 @@ object Fopix2Javix {
     s + "_" + UUID.randomUUID().toString
   }
 
+  def generateDup(n : Integer): List[T.Instruction] = {
+    def aux(n : Integer, acc : List[T.Instruction]) : List[T.Instruction] = {
+      if (n == 0) 
+        acc
+      else
+        aux(n - 1, T.Dup :: acc)
+    }
+    aux(n, List());
+  }
+
   def compile_expr(e: S.Expr, env: Env): List[T.Instruction] = {
     e match {
       case S.Num(n) => List(T.Push(n), T.Box)
@@ -121,16 +131,32 @@ object Fopix2Javix {
           /*RICHARD DIRECT*/
           /*YASSINE INDIRECT*/
       /* Un exemple de primitif : le print_int */
-      case S.Prim(Printint, List(e1)) =>
-      /*RICHARD*/
-        compile_expr(e1, env) ++ List(T.Unbox, T.IPrint, T.Push(0), T.Box)
-      case S.Prim(Printstr, List(e1)) =>
-      /*RICHARD*/
-        compile_expr(e1, env) ++ List(T.SPrint, T.Push(0), T.Box)
+      case S.Prim(prim, list) =>
+        (prim, list) match {
+          case (New, List(e1)) =>
+            compile_expr(e1, env) ++ List(T.Unbox, T.ANewarray)
+          case (Get, List(e1, e2)) =>
+            compile_expr(e1, env) ++ List(T.Checkarray) ++ compile_expr(e2, env) ++ List(T.Unbox, T.AALoad)
+          case (Set, List(e1, e2, e3)) =>
+            compile_expr(e1, env) ++ List(T.Checkarray) ++ compile_expr(e2, env) ++ List(T.Unbox) ++ 
+            compile_expr(e3, env) ++ List(T.AAStore)
+          case (Tuple, _) =>
+            val count = list.length
+            val l = list.foldLeft((List[T.Instruction](), 0)) {
+              (acc, elt) => 
+                (acc._1 ++ List(T.Push(acc._2)) ++ (compile_expr(elt, env))
+                ++ List(T.AAStore), acc._2 + 1)
+            }
+            List(T.Push(count), T.ANewarray) ++ generateDup(count) ++ l._1
+          case (Printint, List(e1)) =>
+            compile_expr(e1, env) ++ List(T.Unbox, T.IPrint, T.Push(0), T.Box)
+          case (Printstr, List(e1)) =>
+            compile_expr(e1, env) ++ List(T.SPrint, T.Push(0), T.Box)
+          case (Cat, List(e1, e2)) =>
+            compile_expr(e1, env) ++  compile_expr(e2, env) ++ List(T.SCat)   
+        }
 
-      case S.Prim(Cat, List(e1, e2)) =>
-        compile_expr(e1, env) ++  compile_expr(e2, env) ++ List(T.SCat)
-      /*RICHARD*/
+      
       /* Push(0) correspond au résultat de type unit du print_int */
       case _ => List() // je fé les prims mon reuf TODO : traiter tous les cas manquants !
     }
