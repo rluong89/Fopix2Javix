@@ -138,8 +138,8 @@ object Fopix2Javix {
           case (Get, List(e1, e2)) =>
             compile_expr(e1, env) ++ List(T.Checkarray) ++ compile_expr(e2, env) ++ List(T.Unbox, T.AALoad)
           case (Set, List(e1, e2, e3)) =>
-            compile_expr(e1, env) ++ List(T.Checkarray) ++ compile_expr(e2, env) ++ List(T.Unbox) ++ 
-            compile_expr(e3, env) ++ List(T.AAStore)
+            compile_expr(e1, env) ++ compile_expr(e2, env) ++ List(T.Unbox) ++ 
+            compile_expr(e3, env) ++ List(T.AAStore, T.Push(0), T.Box)
           case (Tuple, _) =>
             val count = list.length
             val l = list.foldLeft((List[T.Instruction](), 0)) {

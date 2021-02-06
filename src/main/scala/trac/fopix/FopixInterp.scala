@@ -151,20 +151,20 @@ object Interp {
       case (New, List(RInt(i))) =>
         val res = RBlk(count)
         val array: Array[Result] = new Array[Result](i)
-        mem += (i -> array)
+        mem += (count -> array)
         count += 1
         memsize += 1
         res
       case (Get, List(RBlk(a), RInt(i))) =>
         val optionalR = mem.get(a)
         optionalR match {
-          case None        => throw new Invalid("Array does not exist")
+          case None        => throw new Invalid("Array does not exist (Get)")
           case Some(array) => array(i)
         }
       case (Set, List(RBlk(array), RInt(index), new_val)) =>
         val optionalArray = mem.get(array)
         optionalArray match {
-          case None        => throw new Invalid("Array does not exist")
+          case None        => throw new Invalid("Array does not exist (Set)")
           case Some(array) => 
             array(index) = new_val
             RUnit
