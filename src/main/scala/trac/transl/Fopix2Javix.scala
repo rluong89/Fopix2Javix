@@ -5,6 +5,7 @@
 package trac.transl
 
 import java.util.UUID
+import trac.javix.AST.ALoad
 
 object Fopix2Javix {
 
@@ -20,12 +21,23 @@ object Fopix2Javix {
 
   type Env = Map[S.Ident, Int]
 
+  def computeVarSize(instrs: List[T.Instruction]): Int = {
+    val pair = instrs.foldLeft((0, 0))((acc, elt) => {
+      elt match {
+        case T.AStore(_) => (acc._1 + 1, acc._2)
+        case T.ALoad(_)  => (acc._1, acc._2 + 1)
+        case _           => acc
+      }
+    })
+    Math.max(pair._1, pair._2)
+  }
+
   def compile(progname: String, p: S.Program): T.Program = {
-    val varsize = 100
     val stacksize = 10000
     //val instrs = List(T.Comment("Todo!!"),T.Return)
     val env: Env = Map.empty
     val instrs = compile_definitions(p, env) ++ List(T.Return)
+    val varsize = computeVarSize(instrs)
     T.Program(progname, instrs, varsize, stacksize)
   }
 
@@ -43,15 +55,20 @@ object Fopix2Javix {
         val optionX = env get (x)
         val (newInstruction, new_env) =
           optionX match {
-            case Some(value) => (T.AStore(value), env)
+            case Some(value) => (List(T.AStore(value)), env)
             case None =>
-              count += 1
-              (T.AStore(count), (env + (x -> count)))
+              if (x.equals("_")) {
+                (List(), env)
+              } else {
+                count += 1
+                (List(T.AStore(count)), (env + (x -> count)))
+              }
           }
-        instructions ++ List(newInstruction) ++
+        instructions ++ newInstruction ++
           (compile_definitions(p, new_env))
 
-      case S.Def(_, _, _) :: p => compile_definitions(p, env)
+      case S.Def(_, _, _) :: p => /* Richard appel direct */
+        compile_definitions(p, env)
     }
   }
 
