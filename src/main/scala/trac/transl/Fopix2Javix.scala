@@ -5,6 +5,7 @@
 package trac.transl
 
 import java.util.UUID
+import trac.fopix.AST
 
 object Fopix2Javix {
 
@@ -31,13 +32,22 @@ object Fopix2Javix {
 
   var count = 0
 
+  var return_labels = List()
+
+  var return_index = 1000
+
+  var archiving_list = List()
+
   def compile_definitions(
       p: List[S.Definition],
       env: Env
   ): List[T.Instruction] = {
     /* TODO: à completer, on ne s'occupe ici que du premier Val ! */
     p match {
-      case Nil => List()
+      case Nil => 
+        val label_dispatch = generateLabel("dispatch")
+        val label_oups = generateLabel("oups")
+        List(T.Labelize(label_dispatch), T.Tableswitch(1000, return_labels, label_oups))
       case S.Val(x, e) :: p =>
         val instructions = compile_expr(e, env)
         val optionX = env get (x)
@@ -50,8 +60,12 @@ object Fopix2Javix {
           }
         instructions ++ List(newInstruction) ++
           (compile_definitions(p, new_env))
-
-      case S.Def(_, _, _) :: p => compile_definitions(p, env)
+      case S.Def(fid, args, e) :: p => 
+        val label_fid = generateLabel(fid)
+        val label_dispatch = generateLabel("dispatch")
+        List(T.Labelize(label_fid)) ++ compile_expr(e, env) ++ 
+        List(T.Swap, T.Goto(label_dispatch))
+        compile_definitions(p, env)
     }
   }
   /* TODO: ajouter une structure d'environnement des variables,
@@ -67,7 +81,7 @@ object Fopix2Javix {
     s + "_" + UUID.randomUUID().toString
   }
 
-  def generateDup(n : Integer): List[T.Instruction] = {
+  def generate_dup(n : Integer): List[T.Instruction] = {
     def aux(n : Integer, acc : List[T.Instruction]) : List[T.Instruction] = {
       if (n == 0) 
         acc
@@ -75,6 +89,48 @@ object Fopix2Javix {
         aux(n - 1, T.Dup :: acc)
     }
     aux(n, List());
+  }
+
+  def generate_store(n : Integer) : List[T.Instruction] = {
+    def aux(i : Integer, acc : List[T.Instruction]) : List[T.Instruction] = {
+      if (i == n) 
+        T.AStore(i) :: acc
+      else
+        aux(i + 1, T.AStore(i) :: acc)
+    }
+    aux(0, List())
+  }
+
+  def archiving(args_len : Integer, env : Env) : List[T.Instruction] = {
+    archiving_list = List()
+    def aux(i : Integer, acc : List[T.Instruction]) : List[T.Instruction] = {
+      if(i == args_len) 
+        return acc
+      if(env.values.exists(_ == i)) {
+        archiving_list ++ List(i)
+        aux(i + 1, acc ++ List(T.ALoad(i)))
+      } else {
+        aux(i + 1, acc)
+      }
+    }
+    aux(0, List())
+  }
+
+  def restoration() : List[T.Instruction] = {
+    archiving_list.foldLeft(List[T.Instruction]()) {
+      (acc, elt) => 
+        acc ++ List(T.AStore(elt))
+    }
+  }
+    
+
+  def args_storing(args : List[S.Expr], env : Env) : List[T.Instruction] = {
+    val (compile_instrs, index) = 
+      args.foldLeft((List[T.Instruction](), 0)) {
+        (acc, elt) => (acc._1 ++ 
+        compile_expr(elt, env), acc._2 + 1)
+    }
+    compile_instrs ++ generate_store(index) 
   }
 
   def compile_expr(e: S.Expr, env: Env): List[T.Instruction] = {
@@ -125,9 +181,23 @@ object Fopix2Javix {
         compile_expr(e1, env) ++ List(T.AStore(current_count)) ++ 
         compile_expr(e2, new_env)
 
-          /*RICHARD*/
+          /*yassine*/
       case S.Fun(fid) => 
-      List()
+      List(T.Ldc(fid)) //archi faux mais provisoire pour recup le fid...
+      case S.Call(f, args) =>
+        val cp_fid = compile_expr(f, env)
+        val fid = cp_fid.head match {
+          case T.Ldc(fid) => fid
+          case _ => throw new Exception
+        }
+        archiving(args.length, env)
+        args_storing(args, env)
+        val f_label = generateLabel(fid)
+        val return_label = generateLabel("return" + return_index.toString)
+        List(T.Push(return_index), T.Goto(f_label), T.Labelize(return_label))
+        return_index += 1
+        return_labels ++ List(return_label)
+        restoration()
           /*RICHARD DIRECT*/
           /*YASSINE INDIRECT*/
       /* Un exemple de primitif : le print_int */
@@ -147,7 +217,7 @@ object Fopix2Javix {
                 (acc._1 ++ List(T.Push(acc._2)) ++ (compile_expr(elt, env))
                 ++ List(T.AAStore), acc._2 + 1)
             }
-            List(T.Push(count), T.ANewarray) ++ generateDup(count) ++ l._1
+            List(T.Push(count), T.ANewarray) ++ generate_dup(count) ++ l._1
           case (Printint, List(e1)) =>
             compile_expr(e1, env) ++ List(T.Unbox, T.IPrint, T.Push(0), T.Box)
           case (Printstr, List(e1)) =>
