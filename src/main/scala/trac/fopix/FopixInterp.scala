@@ -64,6 +64,7 @@ object Interp {
   var allPrints: List[String] = List()
   var memsize = 0
   val mem: Memory = MutableMap.empty
+  var count = 0
 
   def reset(): Unit = {
     allPrints = List()
@@ -148,17 +149,37 @@ object Interp {
       case (Printstr, List(RStr(s)))       => allPrints = s :: allPrints; RUnit
       case (Cat, List(RStr(s1), RStr(s2))) => RStr(s1 + s2)
       case (New, List(RInt(i))) =>
-        val res = RBlk(i)
+        val res = RBlk(count)
         val array: Array[Result] = new Array[Result](i)
-        mem += (i -> array)
-        memsize = memsize + 1
+        mem += (count -> array)
+        count += 1
+        memsize += 1
         res
       case (Get, List(RBlk(a), RInt(i))) =>
         val optionalR = mem.get(a)
         optionalR match {
-          case None        => throw new Invalid("Array does not exist")
+          case None        => throw new Invalid("Array does not exist (Get)")
           case Some(array) => array(i)
         }
+      case (Set, List(RBlk(array), RInt(index), new_val)) =>
+        val optionalArray = mem.get(array)
+        optionalArray match {
+          case None        => throw new Invalid("Array does not exist (Set)")
+          case Some(array) => 
+            array(index) = new_val
+            RUnit
+        }
+      case (Tuple, _) =>
+        val size = args.length
+        val res = RBlk(count)
+        val array : Array[Result] = new Array[Result](size)
+        args.foldLeft(0) {
+          (acc, elt) => array(acc) = elt; acc + 1
+        }
+        mem += (count -> array)
+        memsize += 1
+        count += 1
+        res
       case _ =>
         throw new Invalid("Unsupported primitive call (TODO ? bad arg ?)")
     }
