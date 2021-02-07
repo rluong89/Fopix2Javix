@@ -35,6 +35,26 @@ object Trac extends App {
     println("Javix file : " + javixfile)
     writeFile(javixfile,javix.PP.pp(javixAst))
     if (run) print("Javix interp :\n" + javix.Interp.eval(javixAst,trace))
+    // Translation to Anfix (in foo.anfix)
+    val anfixAst = Fopix2Anfix.trans(ast)
+    val anfixfile = basename + ".anfix"
+    println("Anfix file : " + anfixfile)
+    writeFile(anfixfile,anfix.PP.pp(anfixAst))
+    if (run) print("Anfix interp :\n" + anfix.Interp.eval(anfixAst))
+
+    // Translation to Kontix (in foo.kontix)
+    val kontixAst = Anfix2Kontix.trans(anfixAst)
+    val kontixfile = basename + ".kontix"
+    println("Kontix file : " + kontixfile)
+    writeFile(kontixfile,kontix.PP.pp(kontixAst))
+    if (run) print("Kontix interp :\n" + kontix.Interp.eval(kontixAst))
+
+    // Javix code via continuation (in foo.k)
+    val jakixAst = Kontix2Javix.compile(basename,kontixAst)
+    val jakixfile = basename + ".k"
+    println("Jakix file : " + jakixfile)
+    writeFile(jakixfile,javix.PP.pp(jakixAst))
+    if (run) print("Jakix interp :\n" + javix.Interp.eval(jakixAst,trace))
   }
 
   def writeFile(file:String,content:String) {
