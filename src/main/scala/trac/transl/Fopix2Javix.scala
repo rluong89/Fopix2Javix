@@ -37,7 +37,8 @@ object Fopix2Javix {
     //val instrs = List(T.Comment("Todo!!"),T.Return)
     val env: Env = Map.empty
     val instrs = compile_definitions(p, env) ++ List(T.Return)
-    val varsize = computeVarSize(instrs)
+    //val varsize = computeVarSize(instrs)
+    val varsize = 1000
     T.Program(progname, instrs, varsize, stacksize)
   }
 
@@ -75,10 +76,13 @@ object Fopix2Javix {
         instructions ++ newInstruction ++
           (compile_definitions(p, new_env))
       case S.Def(fid, args, e) :: p =>
-          List(T.Labelize(fid)) ++ compile_expr(e, env) ++
+          val (env_fun, _) = args.foldLeft((env, 0)) {
+            (acc, elt) => (acc._1 + (elt -> acc._2), acc._2 + 1)
+          }
+          List(T.Labelize(fid)) ++ compile_expr(e, env_fun) ++
           List(T.Swap, T.Goto("dispatch")) ++ compile_definitions(p, env)
-    }
-  }
+        }
+      }
   /* TODO: ajouter une structure d'environnement des variables,
    * du genre Map[S.Ident,T.Var] donnant le numéro de la variable Javix
    * correspondant à un nom de variable Fopix */
@@ -180,8 +184,6 @@ object Fopix2Javix {
         count += 1
         compile_expr(e1, env) ++ List(T.AStore(current_count)) ++
           compile_expr(e2, new_env)
-
-      /*yassine*/
       case S.Fun(fid) =>
         List(T.Goto(fid))
       case S.Call(f, args) =>
@@ -219,7 +221,7 @@ object Fopix2Javix {
 
       /* Push(0) correspond au résultat de type unit du print_int */
       case _ =>
-        List() // je fé les prims mon reuf TODO : traiter tous les cas manquants !
+        List() // TODO : traiter tous les cas manquants !
     }
   }
 
