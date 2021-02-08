@@ -26,3 +26,16 @@ Voir [AnfixAST.scala](../src/main/scala/trac/anfix/AnfixAST.scala).
 Kontix correspond à du code mis en CPS (on y fait donc des "Kontinuations").
 
 Voir [KontixAST.scala](../src/main/scala/trac/kontix/KontixAST.scala).
+
+
+#### Les deux chemins de compilation
+
+```
+              directe
+Fopix ------------------>  Javix
+  \                        /
+   \ ajout let            /  compil optimisée (pas d'adresse de retour)
+    \                    /
+      Anfix ----------> Kontix
+              cps
+```
