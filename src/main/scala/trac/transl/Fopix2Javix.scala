@@ -36,7 +36,7 @@ object Fopix2Javix {
     val stacksize = 10000
     //val instrs = List(T.Comment("Todo!!"),T.Return)
     val env: Env = Map.empty
-    val instrs = compile_definitions(p, env) ++ List(T.Return)
+    val instrs = compile_definitions(p, env, List[T.Instruction](), List[T.Instruction]())
     //val varsize = computeVarSize(instrs)
     val varsize = 1000
     T.Program(progname, instrs, varsize, stacksize)
@@ -44,21 +44,26 @@ object Fopix2Javix {
 
   var count = 0
 
-  var return_labels = List()
+  var return_labels = List[String]()
 
   var return_index = 1000
 
-  var archiving_list = List()
+  var archiving_list = List[Integer]()
 
-  def compile_definitions(
-      p: List[S.Definition],
-      env: Env
-  ): List[T.Instruction] = {
+  def compile_definitions(p: List[S.Definition], env: Env, 
+    main_space : List[T.Instruction], functions_space : List[T.Instruction]): List[T.Instruction] = {
     /* TODO: à completer, on ne s'occupe ici que du premier Val ! */
     p match {
       case Nil => 
-        if (return_labels.length == 0) List()
-        else List(T.Tableswitch(1000, return_labels, "oups"))
+        val program_instructions = main_space ++ List(T.Return) ++ functions_space
+        if (return_labels.length == 0) {
+          print("samaka")
+          program_instructions
+        } else {
+          program_instructions ++ List(T.Labelize("dispatch"), 
+          T.Tableswitch(1000, return_labels, "oups")) ++ 
+          List(T.Labelize("oups"))
+        }
       case S.Val(x, e) :: p =>
         val instructions = compile_expr(e, env)
         val optionX = env get (x)
@@ -73,14 +78,15 @@ object Fopix2Javix {
                 (List(T.AStore(count)), (env + (x -> count)))
               }
           }
-        instructions ++ newInstruction ++
-          (compile_definitions(p, new_env))
+        val main_instrs = instructions ++ newInstruction
+        compile_definitions(p, new_env, main_space ++ main_instrs, functions_space)
       case S.Def(fid, args, e) :: p =>
           val (env_fun, _) = args.foldLeft((env, 0)) {
             (acc, elt) => (acc._1 + (elt -> acc._2), acc._2 + 1)
           }
-          List(T.Labelize(fid)) ++ compile_expr(e, env_fun) ++
-          List(T.Swap, T.Goto("dispatch")) ++ compile_definitions(p, env)
+          val function_instrs = List(T.Labelize(fid)) ++ compile_expr(e, env_fun) ++
+          List(T.Swap, T.Goto("dispatch"))
+          compile_definitions(p, env, main_space, function_instrs)
         }
       }
   /* TODO: ajouter une structure d'environnement des variables,
@@ -107,11 +113,11 @@ object Fopix2Javix {
   }
 
   def archiving(args : List[S.Expr], env: Env): List[T.Instruction] = {
-    archiving_list = List()
+    archiving_list = List[Integer]()
     val (instructions, _) = args.foldLeft((List[T.Instruction](), 0)) {
       (acc, elt) => 
         if (env.values.exists(_ == acc._2)) {
-          acc._2 :: archiving_list
+          archiving_list ::= acc._2
           (acc._1 ++ List(T.ALoad(acc._2)), acc._2 + 1)
       } else {
           (acc._1, acc._2 + 1)
@@ -190,7 +196,7 @@ object Fopix2Javix {
         val goto_fid = compile_expr(f, env)
         val return_label = "return" + return_index.toString
         return_index += 1
-        return_labels ++ List(return_label)
+        return_labels ++= List(return_label)
         archiving(args, env) ++ args_storing(args, env) ++
         List(T.Push(return_index)) ++ goto_fid ++ List(T.Labelize(return_label)) ++
         restoration()
