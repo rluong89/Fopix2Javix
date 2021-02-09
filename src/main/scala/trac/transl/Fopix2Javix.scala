@@ -194,11 +194,12 @@ object Fopix2Javix {
         List(T.Goto(fid))
       case S.Call(f, args) =>
         val goto_fid = compile_expr(f, env)
+        val current_return_index = return_index
         val return_label = "return" + return_index.toString
         return_index += 1
         return_labels ++= List(return_label)
         archiving(args, env) ++ args_storing(args, env) ++
-        List(T.Push(return_index)) ++ goto_fid ++ List(T.Labelize(return_label)) ++
+        List(T.Push(current_return_index)) ++ goto_fid ++ List(T.Labelize(return_label)) ++
         restoration()
       case S.Prim(prim, list) =>
         (prim, list) match {
@@ -224,8 +225,6 @@ object Fopix2Javix {
           case (Cat, List(e1, e2)) =>
             compile_expr(e1, env) ++ compile_expr(e2, env) ++ List(T.SCat)
         }
-
-      /* Push(0) correspond au résultat de type unit du print_int */
       case _ =>
         List() // TODO : traiter tous les cas manquants !
     }
