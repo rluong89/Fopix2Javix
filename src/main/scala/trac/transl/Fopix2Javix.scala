@@ -34,11 +34,9 @@ object Fopix2Javix {
 
   def compile(progname: String, p: S.Program): T.Program = {
     val stacksize = 10000
-    //val instrs = List(T.Comment("Todo!!"),T.Return)
     val env: Env = Map.empty
     val instrs = compile_definitions(p, env, List[T.Instruction](), List[T.Instruction]())
-    //val varsize = computeVarSize(instrs)
-    val varsize = 1000
+    val varsize = computeVarSize(instrs)
     T.Program(progname, instrs, varsize, stacksize)
   }
 
@@ -57,7 +55,6 @@ object Fopix2Javix {
       case Nil => 
         val program_instructions = main_space ++ List(T.Return) ++ functions_space
         if (return_labels.length == 0) {
-          print("samaka")
           program_instructions
         } else {
           program_instructions ++ List(T.Labelize("dispatch"), 
