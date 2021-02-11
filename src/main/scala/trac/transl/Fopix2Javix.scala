@@ -39,14 +39,9 @@ object Fopix2Javix {
     val varsize = computeVarSize(instrs)
     T.Program(progname, instrs, varsize, stacksize)
   }
-
   var count = 0
-
   var return_labels = List[String]()
-
   var return_index = 1000
-
-  var archiving_list = List[Integer]()
 
   def compile_definitions(p: List[S.Definition], env: Env, 
     main_space : List[T.Instruction], functions_space : List[T.Instruction]): List[T.Instruction] = {
@@ -110,22 +105,20 @@ object Fopix2Javix {
     aux(n, List());
   }
 
-  def archiving(args : List[S.Expr], env: Env): List[T.Instruction] = {
-    archiving_list = List[Integer]()
-    val (instructions, _) = args.foldLeft((List[T.Instruction](), 0)) {
+  def archiving(args : List[S.Expr], env: Env): (List[T.Instruction], List[Integer]) = {
+    val (instructions, _, archiving_indexes) = args.foldLeft((List[T.Instruction](), 0, List[Integer]())) {
       (acc, elt) => 
         if (env.values.exists(_ == acc._2)) {
-          archiving_list ::= acc._2
-          (acc._1 ++ List(T.ALoad(acc._2)), acc._2 + 1)
+          (acc._1 ++ List(T.ALoad(acc._2)), acc._2 + 1, acc._2 :: acc._3)
       } else {
-          (acc._1, acc._2 + 1)
+          (acc._1, acc._2 + 1, acc._3)
       }
     }
-    instructions
+    (instructions, archiving_indexes)
   }
 
-  def restoration(): List[T.Instruction] = {
-    archiving_list.foldLeft(List[T.Instruction]()) { 
+  def restoration(archiving_indexes : List[Integer]) : List[T.Instruction] = {
+    archiving_indexes.foldLeft(List[T.Instruction]()) { 
       (acc, elt) =>
         acc ++ List(T.Swap, T.AStore(elt))
     }
@@ -194,17 +187,18 @@ object Fopix2Javix {
         val goto_fid = compile_expr(f, env)
         val current_return_index = return_index
         val return_label = "return" + return_index.toString
+        val (archiving_instrs, archiving_indexes) = archiving(args, env)
         return_index += 1
         return_labels ++= List(return_label)
-        archiving(args, env) ++ args_storing(args, env) ++
+        archiving_instrs ++ args_storing(args, env) ++
         List(T.Push(current_return_index)) ++ goto_fid ++ List(T.Labelize(return_label)) ++
-        restoration()
+        restoration(archiving_indexes)
       case S.Prim(prim, list) =>
         (prim, list) match {
           case (New, List(e1)) =>
             compile_expr(e1, env) ++ List(T.Unbox, T.ANewarray)
           case (Get, List(e1, e2)) =>
-            compile_expr(e1, env) ++ 
+            compile_expr(e1, env) ++ List(T.Checkarray) ++
             compile_expr(e2, env) ++ List(T.Unbox, T.AALoad)
           case (Set, List(e1, e2, e3)) =>
             compile_expr(e1, env) ++ compile_expr(e2, env) ++ List(T.Unbox) ++
