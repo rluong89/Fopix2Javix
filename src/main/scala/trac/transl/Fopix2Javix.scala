@@ -71,8 +71,9 @@ object Fopix2Javix {
               if (x.equals("_")) {
                 (List(), env)
               } else {
+                val current_count = count
                 count += 1
-                (List(T.AStore(count)), (env + (x -> count)))
+                (List(T.AStore(current_count)), (env + (x -> current_count)))
               }
           }
         val main_instrs = instructions ++ newInstruction
@@ -83,7 +84,7 @@ object Fopix2Javix {
           }
           val function_instrs = List(T.Labelize(fid)) ++ compile_expr(e, env_fun) ++
           List(T.Swap, T.Goto("dispatch"))
-          compile_definitions(p, env, main_space, function_instrs)
+          compile_definitions(p, env, main_space, functions_space ++ function_instrs)
         }
       }
   /* TODO: ajouter une structure d'environnement des variables,
@@ -203,7 +204,7 @@ object Fopix2Javix {
           case (New, List(e1)) =>
             compile_expr(e1, env) ++ List(T.Unbox, T.ANewarray)
           case (Get, List(e1, e2)) =>
-            compile_expr(e1, env) ++ List(T.Checkarray) ++ 
+            compile_expr(e1, env) ++ 
             compile_expr(e2, env) ++ List(T.Unbox, T.AALoad)
           case (Set, List(e1, e2, e3)) =>
             compile_expr(e1, env) ++ compile_expr(e2, env) ++ List(T.Unbox) ++
