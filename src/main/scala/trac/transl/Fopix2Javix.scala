@@ -6,6 +6,7 @@ package trac.transl
 
 import java.util.UUID
 import trac.fopix.AST
+import java.awt.Label
 
 object Fopix2Javix {
 
@@ -18,8 +19,12 @@ object Fopix2Javix {
   /* /!\ Attention, le code suivant n'est qu'une suggestion pour commencer.
    * Il est probablement à remanier encore (structures en plus, arguments
    * supplémentaires, ...) */
+  val oupsLabel = "oups"
 
   type Env = Map[S.Ident, Int]
+
+  /* maps fun ids to their tablewitch index */
+  type FunEnv = Map[S.FunIdent, Int]
 
   def computeVarSize(instrs: List[T.Instruction]): Int = {
     val pair = instrs.foldLeft((0, 0))((acc, elt) => {
@@ -32,10 +37,42 @@ object Fopix2Javix {
     Math.max(pair._1, pair._2)
   }
 
+  def generateFunEnv(funEnv: FunEnv, p: S.Program, funcount: Int): FunEnv = {
+    p match {
+      case Nil =>
+        funEnv
+      case S.Def(fid, _, _) :: p =>
+        generateFunEnv((funEnv + (fid -> funcount)), p, funcount + 1)
+      case _ :: p => generateFunEnv(funEnv, p, funcount)
+    }
+  }
+
+  def generateTableFun(
+      funEnv: FunEnv,
+      offset: Int,
+      defaultLabel: String
+  ): List[String] = {
+    val list_label = funEnv.foldRight(List[String]())((elt, acc) => {
+      return_index += 1
+      elt._1 :: acc
+    })
+    list_label
+  }
+
   def compile(progname: String, p: S.Program): T.Program = {
     val stacksize = 10000
     val env: Env = Map.empty
-    val instrs = compile_definitions(p, env, List[T.Instruction](), List[T.Instruction]())
+    val funEnv: FunEnv = generateFunEnv(Map.empty, p, 1000)
+    val labelIndirectCall = generateTableFun(funEnv, 1000, oupsLabel)
+    val instrs =
+      compile_definitions(
+        p,
+        env,
+        funEnv,
+        labelIndirectCall,
+        List[T.Instruction](),
+        List[T.Instruction]()
+      )
     val varsize = computeVarSize(instrs)
     T.Program(progname, instrs, varsize, stacksize)
   }
@@ -48,21 +85,29 @@ object Fopix2Javix {
 
   var archiving_list = List[Integer]()
 
-  def compile_definitions(p: List[S.Definition], env: Env, 
-    main_space : List[T.Instruction], functions_space : List[T.Instruction]): List[T.Instruction] = {
-    /* TODO: à completer, on ne s'occupe ici que du premier Val ! */
+  def compile_definitions(
+      p: List[S.Definition],
+      env: Env,
+      funEnv: FunEnv,
+      labelList: List[String],
+      main_space: List[T.Instruction],
+      functions_space: List[T.Instruction]
+  ): List[T.Instruction] = {
     p match {
-      case Nil => 
-        val program_instructions = main_space ++ List(T.Return) ++ functions_space
+      case Nil =>
+        val program_instructions =
+          main_space ++ List(T.Return) ++ functions_space
         if (return_labels.length == 0) {
           program_instructions
         } else {
-          program_instructions ++ List(T.Labelize("dispatch"), 
-          T.Tableswitch(1000, return_labels, "oups")) ++ 
-          List(T.Labelize("oups"))
+          program_instructions ++ List(
+            T.Labelize("dispatch"),
+            T.Tableswitch(1000, labelList ++ return_labels, oupsLabel)
+          ) ++
+            List(T.Labelize(oupsLabel))
         }
       case S.Val(x, e) :: p =>
-        val instructions = compile_expr(e, env)
+        val instructions = compile_expr(e, funEnv, env)
         val optionX = env get (x)
         val (newInstruction, new_env) =
           optionX match {
@@ -76,16 +121,31 @@ object Fopix2Javix {
               }
           }
         val main_instrs = instructions ++ newInstruction
-        compile_definitions(p, new_env, main_space ++ main_instrs, functions_space)
+        compile_definitions(
+          p,
+          new_env,
+          funEnv,
+          labelList,
+          main_space ++ main_instrs,
+          functions_space
+        )
       case S.Def(fid, args, e) :: p =>
-          val (env_fun, _) = args.foldLeft((env, 0)) {
-            (acc, elt) => (acc._1 + (elt -> acc._2), acc._2 + 1)
-          }
-          val function_instrs = List(T.Labelize(fid)) ++ compile_expr(e, env_fun) ++
-          List(T.Swap, T.Goto("dispatch"))
-          compile_definitions(p, env, main_space, function_instrs)
+        val (env_fun, _) = args.foldLeft((env, 0)) { (acc, elt) =>
+          (acc._1 + (elt -> acc._2), acc._2 + 1)
         }
-      }
+        val function_instrs =
+          List(T.Labelize(fid)) ++ compile_expr(e, funEnv, env_fun) ++
+            List(T.Swap, T.Goto("dispatch"))
+        compile_definitions(
+          p,
+          env,
+          funEnv,
+          labelList,
+          main_space,
+          functions_space ++ function_instrs
+        )
+    }
+  }
   /* TODO: ajouter une structure d'environnement des variables,
    * du genre Map[S.Ident,T.Var] donnant le numéro de la variable Javix
    * correspondant à un nom de variable Fopix */
@@ -109,38 +169,44 @@ object Fopix2Javix {
     aux(n, List());
   }
 
-  def archiving(args : List[S.Expr], env: Env): List[T.Instruction] = {
+  def archiving(args: List[S.Expr], env: Env): List[T.Instruction] = {
     archiving_list = List[Integer]()
     val (instructions, _) = args.foldLeft((List[T.Instruction](), 0)) {
-      (acc, elt) => 
+      (acc, elt) =>
         if (env.values.exists(_ == acc._2)) {
           archiving_list ::= acc._2
           (acc._1 ++ List(T.ALoad(acc._2)), acc._2 + 1)
-      } else {
+        } else {
           (acc._1, acc._2 + 1)
-      }
+        }
     }
     instructions
   }
 
   def restoration(): List[T.Instruction] = {
-    archiving_list.foldLeft(List[T.Instruction]()) { 
-      (acc, elt) =>
-        acc ++ List(T.Swap, T.AStore(elt))
+    archiving_list.foldLeft(List[T.Instruction]()) { (acc, elt) =>
+      acc ++ List(T.Swap, T.AStore(elt))
     }
   }
 
-  def args_storing(args: List[S.Expr], env: Env): List[T.Instruction] = {
+  def args_storing(
+      args: List[S.Expr],
+      funEnv: FunEnv,
+      env: Env
+  ): List[T.Instruction] = {
     val (compile_instrs, _, compile_store) =
-      args.foldLeft((List[T.Instruction](), 0, List[T.Instruction]())) { 
+      args.foldLeft((List[T.Instruction](), 0, List[T.Instruction]())) {
         (acc, elt) =>
-          (acc._1 ++ compile_expr(elt, env), acc._2 + 1,
-          T.AStore(acc._2) :: acc._3)
+          (
+            acc._1 ++ compile_expr(elt, funEnv, env),
+            acc._2 + 1,
+            T.AStore(acc._2) :: acc._3
+          )
       }
     compile_instrs ++ compile_store
   }
 
-  def compile_expr(e: S.Expr, env: Env): List[T.Instruction] = {
+  def compile_expr(e: S.Expr, funEnv: FunEnv, env: Env): List[T.Instruction] = {
     e match {
       case S.Num(n) => List(T.Push(n), T.Box)
       case S.Str(s) => List(T.Ldc(s))
@@ -148,19 +214,23 @@ object Fopix2Javix {
       case S.If(e1, e2, e3) =>
         val label_false = generateLabel("iffalse")
         val label_if_end = generateLabel("ifend")
-        compile_expr(e1, env) ++ List(
+        compile_expr(e1, funEnv, env) ++ List(
           T.Unbox,
           T.If(BinOp.toCmp(BinOp.Eq), label_false)
-        ) ++ compile_expr(e2, env) ++
+        ) ++ compile_expr(e2, funEnv, env) ++
           List(
             T.Goto(label_if_end),
             T.Labelize(label_false)
-          ) ++ compile_expr(e3, env) ++
+          ) ++ compile_expr(e3, funEnv, env) ++
           List(T.Labelize(label_if_end))
 
       case S.Op(o, e1, e2) =>
         if (isArith(o)) {
-          compile_expr(e1, env) ++ List(T.Unbox) ++ compile_expr(e2, env) ++
+          compile_expr(e1, funEnv, env) ++ List(T.Unbox) ++ compile_expr(
+            e2,
+            funEnv,
+            env
+          ) ++
             List(
               T.Unbox,
               T.IOp(BinOp.toArith(o)),
@@ -169,8 +239,8 @@ object Fopix2Javix {
         } else {
           val label_true = generateLabel("booleantrue")
           val label_end = generateLabel("booleanend")
-          compile_expr(e1, env) ++ List(T.Unbox) ++
-            compile_expr(e2, env) ++ List(
+          compile_expr(e1, funEnv, env) ++ List(T.Unbox) ++
+            compile_expr(e2, funEnv, env) ++ List(
               T.Unbox,
               T.Ificmp(BinOp.toCmp(o), label_true),
               T.Push(0),
@@ -185,42 +255,71 @@ object Fopix2Javix {
         val current_count = count
         val new_env = (env + (id -> current_count))
         count += 1
-        compile_expr(e1, env) ++ List(T.AStore(current_count)) ++
-          compile_expr(e2, new_env)
+        compile_expr(e1, funEnv, env) ++ List(T.AStore(current_count)) ++
+          compile_expr(e2, funEnv, new_env)
       case S.Fun(fid) =>
-        List(T.Goto(fid))
+        val fun_index = funEnv(fid)
+        println("FID " + fid)
+        List(T.Push(fun_index), T.Box)
       case S.Call(f, args) =>
-        val goto_fid = compile_expr(f, env)
+        val goto_fid = compile_expr(f, funEnv, env)
         val current_return_index = return_index
         val return_label = "return" + return_index.toString
         return_index += 1
         return_labels ++= List(return_label)
-        archiving(args, env) ++ args_storing(args, env) ++
-        List(T.Push(current_return_index)) ++ goto_fid ++ List(T.Labelize(return_label)) ++
-        restoration()
+        /* 1 Archivage des vars */
+        archiving(args, env) ++
+          /* 2 Stocke code de label de retour */
+          List(T.Push(current_return_index)) ++
+          /* 3 compile E + unbox */
+          goto_fid ++ List(T.Unbox) ++
+          /* 4 5 compil + Stocke les arguments (Pas sur) */
+          args_storing(args, funEnv, env) ++
+          List(T.Goto("dispatch")) ++
+          List(T.Labelize(return_label)) ++
+          restoration()
       case S.Prim(prim, list) =>
         (prim, list) match {
           case (New, List(e1)) =>
-            compile_expr(e1, env) ++ List(T.Unbox, T.ANewarray)
+            compile_expr(e1, funEnv, env) ++ List(T.Unbox, T.ANewarray)
           case (Get, List(e1, e2)) =>
-            compile_expr(e1, env) ++ List(T.Checkarray) ++ 
-            compile_expr(e2, env) ++ List(T.Unbox, T.AALoad)
+            compile_expr(e1, funEnv, env) ++ List(T.Checkarray) ++
+              compile_expr(e2, funEnv, env) ++ List(T.Unbox, T.AALoad)
           case (Set, List(e1, e2, e3)) =>
-            compile_expr(e1, env) ++ compile_expr(e2, env) ++ List(T.Unbox) ++
-            compile_expr(e3, env) ++ List(T.AAStore, T.Push(0), T.Box)
+            compile_expr(e1, funEnv, env) ++ compile_expr(
+              e2,
+              funEnv,
+              env
+            ) ++ List(T.Unbox) ++
+              compile_expr(e3, funEnv, env) ++ List(T.AAStore, T.Push(0), T.Box)
           case (Tuple, _) =>
             val count = list.length
             val l = list.foldLeft((List[T.Instruction](), 0)) { (acc, elt) =>
-              (acc._1 ++ List(T.Push(acc._2)) ++ (compile_expr(elt, env)) ++ List(T.AAStore),
-               acc._2 + 1)
+              (
+                acc._1 ++ List(T.Push(acc._2)) ++ (compile_expr(
+                  elt,
+                  funEnv,
+                  env
+                )) ++ List(T.AAStore),
+                acc._2 + 1
+              )
             }
             List(T.Push(count), T.ANewarray) ++ generate_dup(count) ++ l._1
           case (Printint, List(e1)) =>
-            compile_expr(e1, env) ++ List(T.Unbox, T.IPrint, T.Push(0), T.Box)
+            compile_expr(e1, funEnv, env) ++ List(
+              T.Unbox,
+              T.IPrint,
+              T.Push(0),
+              T.Box
+            )
           case (Printstr, List(e1)) =>
-            compile_expr(e1, env) ++ List(T.SPrint, T.Push(0), T.Box)
+            compile_expr(e1, funEnv, env) ++ List(T.SPrint, T.Push(0), T.Box)
           case (Cat, List(e1, e2)) =>
-            compile_expr(e1, env) ++ compile_expr(e2, env) ++ List(T.SCat)
+            compile_expr(e1, funEnv, env) ++ compile_expr(
+              e2,
+              funEnv,
+              env
+            ) ++ List(T.SCat)
         }
       case _ =>
         List() // TODO : traiter tous les cas manquants !
