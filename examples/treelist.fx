@@ -27,6 +27,12 @@ def tolist (t) =
   if t[0] == 0 then cons(t[1],nil())
   else concat (tolist (t[1]), tolist (t[2]))
 
+val a = leaf(7)
+val b = leaf(5)
+val c = leaf(9)
+val d = node(b, c)
+val e = node(a, d)
+
 val ex = (tolist (node (leaf (7), node (leaf (5), leaf (9)))))[1]
 val _ = print_int(ex)
 val _ = print_string("\n")

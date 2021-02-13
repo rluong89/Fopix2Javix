@@ -37,33 +37,32 @@ object Fopix2Javix {
     Math.max(pair._1, pair._2)
   }
 
-  def generateFunEnv(funEnv: FunEnv, p: S.Program, funcount: Int): FunEnv = {
+  def generateFunEnv(
+      funEnv: FunEnv,
+      list_label: List[String],
+      p: S.Program,
+      funcount: Int
+  ): (List[String], FunEnv) = {
     p match {
       case Nil =>
-        funEnv
+        (list_label, funEnv)
       case S.Def(fid, _, _) :: p =>
-        generateFunEnv((funEnv + (fid -> funcount)), p, funcount + 1)
-      case _ :: p => generateFunEnv(funEnv, p, funcount)
+        return_index += 1
+        generateFunEnv(
+          (funEnv + (fid -> funcount)),
+          list_label ++ List(fid),
+          p,
+          funcount + 1
+        )
+      case _ :: p => generateFunEnv(funEnv, list_label, p, funcount)
     }
-  }
-
-  def generateTableFun(
-      funEnv: FunEnv,
-      offset: Int,
-      defaultLabel: String
-  ): List[String] = {
-    val list_label = funEnv.foldRight(List[String]())((elt, acc) => {
-      return_index += 1
-      elt._1 :: acc
-    })
-    list_label
   }
 
   def compile(progname: String, p: S.Program): T.Program = {
     val stacksize = 10000
     val env: Env = Map.empty
-    val funEnv: FunEnv = generateFunEnv(Map.empty, p, 1000)
-    val labelIndirectCall = generateTableFun(funEnv, 1000, oupsLabel)
+    val (labelIndirectCall, funEnv) =
+      generateFunEnv(Map.empty, List[String](), p, 1000)
     val instrs =
       compile_definitions(
         p,
@@ -76,14 +75,13 @@ object Fopix2Javix {
     val varsize = computeVarSize(instrs)
     T.Program(progname, instrs, varsize, stacksize)
   }
-
   var count = 0
-
   var return_labels = List[String]()
-
   var return_index = 1000
 
-  var archiving_list = List[Integer]()
+  def setCount(x: Int): Unit = {
+    count = x
+  }
 
   def compile_definitions(
       p: List[S.Definition],
@@ -93,6 +91,7 @@ object Fopix2Javix {
       main_space: List[T.Instruction],
       functions_space: List[T.Instruction]
   ): List[T.Instruction] = {
+    /* TODO: à completer, on ne s'occupe ici que du premier Val ! */
     p match {
       case Nil =>
         val program_instructions =
@@ -114,10 +113,11 @@ object Fopix2Javix {
             case Some(value) => (List(T.AStore(value)), env)
             case None =>
               if (x.equals("_")) {
-                (List(), env)
+                (List(T.Pop), env)
               } else {
-                count += 1
-                (List(T.AStore(count)), (env + (x -> count)))
+                val current_count = count
+                setCount(count + 1)
+                (List(T.AStore(current_count)), (env + (x -> current_count)))
               }
           }
         val main_instrs = instructions ++ newInstruction
@@ -133,9 +133,12 @@ object Fopix2Javix {
         val (env_fun, _) = args.foldLeft((env, 0)) { (acc, elt) =>
           (acc._1 + (elt -> acc._2), acc._2 + 1)
         }
+        val old_count = count
+        count = args.size
         val function_instrs =
           List(T.Labelize(fid)) ++ compile_expr(e, funEnv, env_fun) ++
             List(T.Swap, T.Goto("dispatch"))
+        count = old_count
         compile_definitions(
           p,
           env,
@@ -169,22 +172,23 @@ object Fopix2Javix {
     aux(n, List());
   }
 
-  def archiving(args: List[S.Expr], env: Env): List[T.Instruction] = {
-    archiving_list = List[Integer]()
-    val (instructions, _) = args.foldLeft((List[T.Instruction](), 0)) {
-      (acc, elt) =>
+  def archiving(
+      args: List[S.Expr],
+      env: Env
+  ): (List[T.Instruction], List[Integer]) = {
+    val (instructions, _, archiving_indexes) =
+      args.foldLeft((List[T.Instruction](), 0, List[Integer]())) { (acc, elt) =>
         if (env.values.exists(_ == acc._2)) {
-          archiving_list ::= acc._2
-          (acc._1 ++ List(T.ALoad(acc._2)), acc._2 + 1)
+          (acc._1 ++ List(T.ALoad(acc._2)), acc._2 + 1, acc._2 :: acc._3)
         } else {
-          (acc._1, acc._2 + 1)
+          (acc._1, acc._2 + 1, acc._3)
         }
-    }
-    instructions
+      }
+    (instructions, archiving_indexes)
   }
 
-  def restoration(): List[T.Instruction] = {
-    archiving_list.foldLeft(List[T.Instruction]()) { (acc, elt) =>
+  def restoration(archiving_indexes: List[Integer]): List[T.Instruction] = {
+    archiving_indexes.foldLeft(List[T.Instruction]()) { (acc, elt) =>
       acc ++ List(T.Swap, T.AStore(elt))
     }
   }
@@ -252,23 +256,31 @@ object Fopix2Javix {
             )
         }
       case S.Let(id, e1, e2) =>
-        val current_count = count
-        val new_env = (env + (id -> current_count))
-        count += 1
-        compile_expr(e1, funEnv, env) ++ List(T.AStore(current_count)) ++
-          compile_expr(e2, funEnv, new_env)
+        if (id.equals("_")) {
+          val old_count = count
+          val res = compile_expr(e1, funEnv, env) ++ List(T.Pop) ++
+            compile_expr(e2, funEnv, env)
+          count = old_count
+          res
+        } else {
+          val current_count = count
+          val new_env = (env + (id -> current_count))
+          setCount(count + 1)
+          compile_expr(e1, funEnv, env) ++ List(T.AStore(current_count)) ++
+            compile_expr(e2, funEnv, new_env)
+        }
       case S.Fun(fid) =>
         val fun_index = funEnv(fid)
-        println("FID " + fid)
         List(T.Push(fun_index), T.Box)
       case S.Call(f, args) =>
         val goto_fid = compile_expr(f, funEnv, env)
         val current_return_index = return_index
         val return_label = "return" + return_index.toString
+        val (archiving_instrs, archiving_indexes) = archiving(args, env)
         return_index += 1
         return_labels ++= List(return_label)
         /* 1 Archivage des vars */
-        archiving(args, env) ++
+        val res = archiving_instrs ++
           /* 2 Stocke code de label de retour */
           List(T.Push(current_return_index)) ++
           /* 3 compile E + unbox */
@@ -277,7 +289,8 @@ object Fopix2Javix {
           args_storing(args, funEnv, env) ++
           List(T.Goto("dispatch")) ++
           List(T.Labelize(return_label)) ++
-          restoration()
+          restoration(archiving_indexes)
+        res
       case S.Prim(prim, list) =>
         (prim, list) match {
           case (New, List(e1)) =>
@@ -294,6 +307,7 @@ object Fopix2Javix {
               compile_expr(e3, funEnv, env) ++ List(T.AAStore, T.Push(0), T.Box)
           case (Tuple, _) =>
             val count = list.length
+
             val l = list.foldLeft((List[T.Instruction](), 0)) { (acc, elt) =>
               (
                 acc._1 ++ List(T.Push(acc._2)) ++ (compile_expr(
