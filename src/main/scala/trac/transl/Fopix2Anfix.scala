@@ -30,15 +30,16 @@ object Fopix2Anfix {
 
   def trans_expr(e: S.Expr): T.Expr = {
     e match {
-      case Num(n)          => T.Simple(T.Num(0))
-      case Str(s)          => T.Simple(T.Num(0))
-      case Fun(fid)        => T.Simple(T.Num(0))
-      case Var(id)         => T.Simple(T.Num(0))
-      case Let(id, e1, e2) => T.Simple(T.Num(0))
-      case If(e1, e2, e3)  => T.Simple(T.Num(0))
-      case Op(o, e1, e2)   => T.Simple(T.Num(0))
-      case Prim(p, args)   => T.Simple(T.Num(0))
-      case Call(f, args)   => T.Simple(T.Num(0))
+      case Num(n)          => T.Simple(T.Num(n))
+      case Str(s)          => T.Simple(T.Str(s))
+      case Fun(fid)        => T.Simple(T.Fun(fid))
+      case Var(id)         => T.Simple(T.Var(id))
+      case Let(id, e1, e2) => T.Simple(T.Num(0)) /* Yassine */
+      case If(e1, e2, e3)  => T.Simple(T.Num(0)) /* Yassine */
+      case Op(o, e1, e2)   => T.Simple(T.Num(0)) /* Richard */
+      case Prim(p, args)   => T.Simple(T.Num(0)) /* Richard */
+      case Call(f, args) =>
+        T.Simple(T.Num(0)) /* Yassine indirect Richard direct */
     }
   }
 
