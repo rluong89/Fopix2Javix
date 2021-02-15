@@ -22,3 +22,14 @@ Cette partie nécessite de compléter les fichiers suivants:
 - [Kontix2Javix](../src/main/scala/trac/transl/Kontix2Javix.scala)
 
 Pour les différencier des fichiers obtenus en partie 1, les fichiers produits dans cette partie 2 seront appelés `.k` même s'il s'agit toujours de fichiers destinés à l'assembleur `jasmin`. Cette fois-ci, les `.class` correspondant devront pouvoir être exécutés via `java` (sans le `-noverify`). Attention alors à bien calculer et indiquer la hauteur de pile nécessaire dans votre programme.
+
+## Dépôts git pris en compte pour le rendu de projet
+
+Me contacter si votre dépôt sur le serveur gaufre n'est pas dans la liste
+
+- gudin/transprog-2021
+- luong/transprog-2021
+- Haifa/transprog-2021
+- chaboche/transprog-2021
+- thebinome/transprog-2021
+
