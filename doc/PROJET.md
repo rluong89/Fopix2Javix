@@ -25,7 +25,8 @@ Pour les différencier des fichiers obtenus en partie 1, les fichiers produits d
 
 ## Dépôts git pris en compte pour le rendu de projet
 
-Me contacter si votre dépôt sur le serveur gaufre n'est pas dans la liste
+Vous avez jusqu'au 1/3/2021 pour me rendre accessible votre fork de `letouzey/transprog-2021` sur le serveur gaufre.
+Me contacter si votre dépôt sur le serveur gaufre n'est pas dans la liste suivante :
 
 - gudin/transprog-2021
 - luong/transprog-2021
