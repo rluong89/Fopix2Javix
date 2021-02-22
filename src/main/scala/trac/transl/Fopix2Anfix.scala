@@ -13,6 +13,8 @@ import trac.fopix.AST.If
 import trac.fopix.AST.Op
 import trac.fopix.AST.Prim
 import trac.fopix.AST.Call
+import trac.anfix.AST.Simple
+import trac.anfix.AST
 
 object Fopix2Anfix {
 
@@ -20,10 +22,14 @@ object Fopix2Anfix {
   import trac.fopix.{AST => S}
   import trac.anfix.{AST => T}
 
+  final case class CustomException(private val message : String = "", private val cause : Throwable = None.orNull)
+  extends Exception(message, cause)
+
   def trans(p: S.Program): T.Program = {
     p match {
       case Nil                       => List()
-      case S.Val(id, e) :: tl        => List()
+      case S.Val(id, e) :: tl        => 
+        List(T.Val(id, trans_expr(e))) ++ trans(tl)
       case S.Def(fid, args, e) :: tl => List()
     }
   }
@@ -55,8 +61,21 @@ object Fopix2Anfix {
             trans_expr(e3)
           )
         ) /* Yassine */
-      case Op(o, e1, e2) => T.Simple(T.Num(0)) /* Richard */
-      case Prim(p, args) => T.Simple(T.Num(0)) /* Richard */
+      case Op(o, e1, e2) => 
+        val id1 = generateLabel()
+        val id2 = generateLabel()
+        T.Let(id2, trans_expr(e2), T.Let(id1, trans_expr(e1), T.Op(BinOp.toArith(o), T.Var(id1), T.Var(id2))))
+      case Prim(p, args) => 
+        val compiled_args = args.foldLeft(List[T.SimplExpr]()) {
+          (acc, elt) =>
+            val trans = trans_expr(elt)
+            trans match {
+              case T.Simple(e) => acc ++ List(e)
+              case T.Let(_, _, Simple(e)) => acc ++ acc
+              case _ => throw CustomException("to do or fail")
+            }
+        }
+      T.Prim(p, compiled_args)
       case Call(f, args) =>
         T.Simple(T.Num(0)) /* Yassine indirect Richard direct */
     }
