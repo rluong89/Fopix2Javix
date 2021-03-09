@@ -29,7 +29,7 @@ object Anfix2Kontix {
   def trans(p: S.Program): T.Program = {
     val immuetableList = List()
     val (defs, tailexpr) = compile_definitions(p, immuetableList)
-    println(tailexpr)
+    //println(tailexpr)
     T.Program(defs, tailexpr)
   }
 
@@ -39,6 +39,10 @@ object Anfix2Kontix {
     val new_label = "x" + _count
     _count += 1
     new_label
+  }
+  // Fonction qui permettera de compiler le main en suite de let
+  def mainToLet(p: S.Program): S.Program = {
+    p
   }
 
   def compile_definitions(
@@ -50,9 +54,12 @@ object Anfix2Kontix {
       /* Yassine */
       case S.Val(id, e) :: tl =>
         //Liste immutable ?
+        // J'étends l'environnement seulement si nécessaire
         val new_list = if (id.equals("_")) { nestedEnv }
         else { id :: nestedEnv }
+        // On calcule le reste
         val recursive_res = compile_definitions(tl, new_list)
+        // Match pour savoir si on peut traduir en BasicExpr
         e match {
           case S.Simple(e) =>
             (
@@ -60,8 +67,9 @@ object Anfix2Kontix {
               T.Let(id, compile_simple_to_basic(e), recursive_res._2)
             )
           case e =>
-            /* Faire une continuation */
+            // Generation de la continuation + Lancement de celle-ci
             val generatedLabel = generateLabel()
+            // Crée une classe qui fournis des générateur de label ?
             val tailexpr = compile_expr_to_tail(e)
             val defkont = T.DefCont(generatedLabel, nestedEnv, id, tailexpr)
             val pushkont =
@@ -84,8 +92,18 @@ object Anfix2Kontix {
       case S.Simple(e) => T.Ret(compile_simple_to_basic(e))
       /* peut optimiser peut être simple */
       /* Yassine */
-      case S.Let(id, e1, e2) => T.Ret(T.Num(0))
-      case S.If(c, e2, e3)   => T.Ret(T.Num(0))
+      case S.Let(id, e1, e2) =>
+        /* A peu prés le même code que le val */
+        T.Ret(T.Num(0))
+      case S.If(c, e2, e3) =>
+        val (comparator, simple1, simple2) = c
+        val (basic1, basic2) =
+          (compile_simple_to_basic(simple1), compile_simple_to_basic(simple2))
+        T.If(
+          (comparator, basic1, basic2),
+          compile_expr_to_tail(e2),
+          compile_expr_to_tail(e3)
+        )
       case S.Op(o, e1, e2) =>
         val eg = compile_simple_to_basic(e1)
         val ed = compile_simple_to_basic(e2)
