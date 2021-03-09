@@ -30,7 +30,8 @@ object Fopix2Anfix {
       case Nil                       => List()
       case S.Val(id, e) :: tl        => 
         List(T.Val(id, trans_expr(e))) ++ trans(tl)
-      case S.Def(fid, args, e) :: tl => List()
+      case S.Def(fid, args, e) :: tl => 
+        List(T.Def(fid, args, trans_expr(e))) ++ trans(tl)
     }
   }
   var _count = 0
@@ -39,6 +40,34 @@ object Fopix2Anfix {
     val new_label = "x" + _count
     _count += 1
     new_label
+  }
+
+  def prim(args : List[S.Expr], acc : List[T.SimplExpr], p : PrimOp.T) : T.Expr = {
+    args match {
+      case Nil => T.Prim(p, acc)
+      case x :: xs => 
+        val trans_x = trans_expr(x) 
+        trans_x match {
+          case T.Simple(e) => prim(xs, acc ++ List(e), p)
+          case x => 
+            val id = generateLabel()
+            T.Let(id, trans_x, prim(xs, acc ++ List(T.Var(id)), p))
+        }
+    }
+  }
+
+  def call(args : List[S.Expr], acc : List[T.SimplExpr], f : T.SimplExpr) : T.Expr = {
+    args match {
+      case Nil => T.Call(f, acc)
+      case x :: xs => 
+        val trans_x = trans_expr(x) 
+        trans_x match {
+          case T.Simple(e) => call(xs, acc ++ List(e), f)
+          case x => 
+            val id = generateLabel()
+            T.Let(id, trans_x, call(xs, acc ++ List(T.Var(id)), f))
+        }
+    }
   }
 
   def trans_expr(e: S.Expr): T.Expr = {
@@ -62,22 +91,35 @@ object Fopix2Anfix {
           )
         ) /* Yassine */
       case Op(o, e1, e2) => 
-        val id1 = generateLabel()
-        val id2 = generateLabel()
-        T.Let(id2, trans_expr(e2), T.Let(id1, trans_expr(e1), T.Op(BinOp.toArith(o), T.Var(id1), T.Var(id2))))
-      case Prim(p, args) => 
-        val compiled_args = args.foldLeft(List[T.SimplExpr]()) {
-          (acc, elt) =>
-            val trans = trans_expr(elt)
-            trans match {
-              case T.Simple(e) => acc ++ List(e)
-              case T.Let(_, _, Simple(e)) => acc ++ acc
-              case _ => throw CustomException("to do or fail")
-            }
+        val trans_e1 = trans_expr(e1)
+        val trans_e2 = trans_expr(e2)
+        (trans_e1, trans_e2) match {
+          case (T.Simple(se1), T.Simple(se2)) => 
+            T.Op(BinOp.toArith(o), se1, se2)
+          case (T.Simple(se), trans_e2) =>
+            val id = generateLabel() 
+            val operation = T.Op(BinOp.toArith(o), se, T.Var(id))
+            T.Let(id, trans_e2, operation)
+          case (trans_e1, T.Simple(se)) =>
+            val id = generateLabel() 
+            val operation = T.Op(BinOp.toArith(o), se, T.Var(id))
+            T.Let(id, trans_e1, operation)  
+          case (trans_e1, trans_e2) =>
+            val id1 = generateLabel()
+            val id2 = generateLabel()
+            val operation = T.Op(BinOp.toArith(o), T.Var(id1), T.Var(id2))
+            val let2 = T.Let(id2, trans_e2, operation)
+            T.Let(id1, trans_e1, let2)
+          case _ => throw CustomException("to do")
         }
-      T.Prim(p, compiled_args)
+      case Prim(p, args) => 
+        prim(args, List[T.SimplExpr](), p)
       case Call(f, args) =>
-        T.Simple(T.Num(0)) /* Yassine indirect Richard direct */
+        val trans_f = trans_expr(f)
+        trans_f match {
+          case Simple(se) => call(args, List[T.SimplExpr](), se)
+          case _ => throw CustomException("Impossible")
+        }
     }
   }
 
