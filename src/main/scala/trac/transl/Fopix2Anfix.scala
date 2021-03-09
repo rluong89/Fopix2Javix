@@ -79,6 +79,7 @@ object Fopix2Anfix {
       case Let(id, e1, e2) =>
         T.Let(id, trans_expr(e1), trans_expr(e2)) /* Yassine */
       case If(e1, e2, e3) =>
+      
         val new_id = generateLabel()
         T.Let(
           new_id,
@@ -89,7 +90,8 @@ object Fopix2Anfix {
             trans_expr(e2),
             trans_expr(e3)
           )
-        ) /* Yassine */
+        )
+        /* Yassine */
       case Op(o, e1, e2) => 
         val trans_e1 = trans_expr(e1)
         val trans_e2 = trans_expr(e2)
