@@ -17,6 +17,7 @@ import trac.anfix.AST.Str
 import trac.anfix.AST.Fun
 import trac.anfix.AST.Var
 import trac.kontix.AST
+import trac.fopix._
 
 object Anfix2Kontix {
 
@@ -24,12 +25,53 @@ object Anfix2Kontix {
   import trac.anfix.{AST => S}
   import trac.kontix.{AST => T}
 
+  final case class CustomException(
+      private val message: String = "",
+      private val cause: Throwable = None.orNull
+  ) extends Exception(message, cause)
+
   var global_kont: List[T.Definition] = List()
+
+  def isVal(e: S.Definition): Boolean = {
+    e match {
+      case Val(_, _)         => true
+      case Def(fid, args, e) => false
+    }
+  }
+
+  // Fonction qui permettera de compiler le main en suite de let
+  def mainToLetRecursive(p: S.Program): (S.Expr, List[S.Definition]) = {
+    p match {
+      case Nil => //(S.Simple(S.Num(0)), List())
+        throw CustomException("This should not happen")
+      case S.Val(id, e) :: tl =>
+        tl match {
+          case Nil => (e, List())
+          case _ =>
+            val res = mainToLetRecursive(tl)
+            val let = S.Let(id, e, res._1)
+            (let, res._2)
+        }
+      case e :: tl =>
+        val res = mainToLetRecursive(tl)
+        (res._1, e :: res._2)
+    }
+  }
+
+  def mainToLet(p: S.Program): S.Program = {
+    val vals_definitions = p.filter(isVal)
+    val def_definitions = p.filter(x => !isVal(x))
+    val sortedProgram = def_definitions ++ vals_definitions
+    val (lets, definitions) = mainToLetRecursive(sortedProgram)
+    definitions :+ S.Val("_", lets)
+
+  }
 
   def trans(p: S.Program): T.Program = {
     val immuetableList = List()
-    val (defs, tailexpr) = compile_definitions(p, immuetableList)
-    //println(tailexpr)
+    val cleanProgram: List[S.Definition] = mainToLet(p)
+    print(PP.pp(Anfix2Fopix.trans(cleanProgram)))
+    val (defs, tailexpr) = compile_definitions(cleanProgram, immuetableList)
     T.Program(defs, tailexpr)
   }
 
@@ -40,10 +82,6 @@ object Anfix2Kontix {
     _count += 1
     new_label
   }
-  // Fonction qui permettera de compiler le main en suite de let
-  def mainToLet(p: S.Program): S.Program = {
-    p
-  }
 
   def compile_definitions(
       p: S.Program,
@@ -53,9 +91,12 @@ object Anfix2Kontix {
       case Nil => (List(), T.Ret(T.Num(0)))
       /* Yassine */
       case S.Val(id, e) :: tl =>
+        if (!id.equals("_")) {
+          throw CustomException("THIS SHOULD NOT HAPPENTTT" + id)
+        }
         //Liste immutable ?
         // J'étends l'environnement seulement si nécessaire
-        val new_list = if (id.equals("_")) { nestedEnv }
+        /*val new_list = if (id.equals("_")) { nestedEnv }
         else { id :: nestedEnv }
         // On calcule le reste
         val recursive_res = compile_definitions(tl, new_list)
@@ -77,7 +118,9 @@ object Anfix2Kontix {
             val new_definitions = defkont :: recursive_res._1
             val new_tailexpr = pushkont
             (new_definitions, new_tailexpr)
-        }
+        }*/
+        val recursive_res = compile_definitions(tl, nestedEnv)
+        (recursive_res._1, compile_expr_to_tail(e))
 
       /* Richard */
       case S.Def(fid, args, e) :: tl =>
