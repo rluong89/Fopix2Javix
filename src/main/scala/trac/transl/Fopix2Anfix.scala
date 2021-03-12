@@ -108,10 +108,11 @@ object Fopix2Anfix {
         val trans_f = trans_expr(f)
         trans_f match {
           case Simple(se) => call(args, List[T.SimplExpr](), se)
-          case _          => throw CustomException("Impossible")
-        }
+          case e => val funLabel = generateLabel()
+          T.Let(funLabel,e,call(args,List[T.SimplExpr](),T.Var(funLabel)))
     }
   }
+}
 
   def handleBinOpArith(
       trans_e1: T.Expr,
