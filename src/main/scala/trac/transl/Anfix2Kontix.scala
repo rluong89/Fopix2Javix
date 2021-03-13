@@ -73,7 +73,7 @@ object Anfix2Kontix {
     val cleanProgram: List[S.Definition] = mainToLet(p)
     print(PP.pp(Anfix2Fopix.trans(cleanProgram)))
     val (defs, tailexpr) = compile_definitions(cleanProgram, immuetableList)
-    T.Program(defs, tailexpr)
+    T.Program(defs ++ global_kont, tailexpr)
   }
 
   var _count = 0
@@ -125,8 +125,16 @@ object Anfix2Kontix {
 
       /* Richard */
       case S.Def(fid, args, e) :: tl =>
+        val tail_expr = compile_expr_to_tail(e)
+        val def_fun = T.DefFun(fid, args, tail_expr) 
         val recursive_res = compile_definitions(tl, nestedEnv)
-        recursive_res
+        (def_fun :: recursive_res._1, recursive_res._2)
+    }
+  }
+
+  def simple_list_to_basic_list(l : List[S.SimplExpr]) : List[T.BasicExpr]= {
+    l.foldLeft(List[T.BasicExpr]()) { (acc, elt) =>
+          acc ++ List(compile_simple_to_basic(elt))
     }
   }
 
@@ -158,9 +166,7 @@ object Anfix2Kontix {
         val basic_e2 = compile_simple_to_basic(e2)
         Some(T.Op(o, basic_e1, basic_e2))
       case S.Prim(o, args) =>
-        var basic_args = args.foldLeft(List[T.BasicExpr]()) { (acc, elt) =>
-          acc ++ List(compile_simple_to_basic(elt))
-        }
+        var basic_args = simple_list_to_basic_list(args)
         Some(T.Prim(o, basic_args))
       case S.Call(_, _) => None
     }
@@ -184,16 +190,18 @@ object Anfix2Kontix {
             val cont_name = generateLabel()
             val tail_e1 = compile_expr_to_tail(e1)
             val tail_e2 = compile_expr_to_tail(e2)
-            val saves = get_variables_from_tail_expr(tail_e2)
-            T.DefCont(cont_name, saves, id, tail_e2)
-            T.PushCont(cont_name, saves, tail_e1)
+            val saves = get_variables_from_tail_expr(tail_e2).distinct
+            val filtered_saves = saves.filter(_ != id)
+            global_kont ++= List(T.DefCont(cont_name, filtered_saves, id, tail_e2))
+            T.PushCont(cont_name, filtered_saves, tail_e1)
           case (None, Some(basic_e2)) =>
             val cont_name = generateLabel()
             val tail_e1 = compile_expr_to_tail(e1)
-            val saves = get_variables_from_basic_expr(basic_e2)
+            val saves = get_variables_from_basic_expr(basic_e2).distinct
+            val filtered_saves = saves.filter(_ != id)
             val tail_e2 = T.Ret(basic_e2)
-            T.DefCont(cont_name, saves, id, tail_e2)
-            T.PushCont(cont_name, saves, tail_e1)
+            global_kont ++= List(T.DefCont(cont_name, filtered_saves, id, tail_e2))
+            T.PushCont(cont_name, filtered_saves, tail_e1)
         }
       /*
         val cont_name = generateLabel()
@@ -236,7 +244,10 @@ object Anfix2Kontix {
         T.Ret(T.Op(o, eg, ed))
       /* Richard */
       case S.Prim(o, args) => handlePrim(o, args)
-      case S.Call(f, args) => T.Ret(T.Num(0))
+      case S.Call(f, args) => 
+        val f_basic = compile_simple_to_basic(f)
+        val args_basic = simple_list_to_basic_list(args)
+        T.Call(f_basic, args_basic)
     }
   }
 
