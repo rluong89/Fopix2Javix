@@ -72,9 +72,7 @@ object Anfix2Kontix {
     val immuetableList = List()
     val cleanProgram: List[S.Definition] = mainToLet(p)
     val (defs, tailexpr) = compile_definitions(cleanProgram, immuetableList)
-    val res = T.Program(defs ++ global_kont, tailexpr)
-    print(PP.pp(Kontix2Fopix.trans(res)))
-    res
+    T.Program(defs ++ global_kont, tailexpr)
   }
 
   var _count = 0
@@ -293,7 +291,7 @@ def get_variables_from_expr(e: S.Expr): List[S.Ident] = {
   e match {
     case S.Simple(e) => get_variables_from_simple(e)
     case S.Let(id, e1, e2) =>
-      get_variables_from_expr(e1) ++ get_variables_from_expr(e2)
+      get_variables_from_expr(e1) ++ get_variables_from_expr(e2).filter(_ != id)
     case S.If((_, se1, se2), e2, e3) =>
       get_variables_from_simple(se1) ++ get_variables_from_simple(se2) ++
       get_variables_from_expr(e2) ++ get_variables_from_expr(e3)
