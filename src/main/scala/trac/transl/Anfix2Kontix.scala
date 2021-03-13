@@ -129,6 +129,40 @@ object Anfix2Kontix {
     }
   }
 
+  def compile_expr_to_basic(e : S.Expr) : Option[T.BasicExpr] = {
+    e match {
+      case S.Simple(e) => Some(compile_simple_to_basic(e))
+      case S.Let(id, e1, e2) => 
+          val op_basic_e1 = compile_expr_to_basic(e1)
+          val op_basic_e2 = compile_expr_to_basic(e2)
+          (op_basic_e1, op_basic_e2) match {
+            case (Some(basic_e1), Some(basic_e2)) => Some(T.BLet(id, basic_e1, basic_e2))
+            case _ => None
+          }
+      case S.If(c, e1, e2) =>
+          val (comp, se1, se2) = c
+          val basic_se1 = compile_simple_to_basic(se1)
+          val basic_se2 = compile_simple_to_basic(se2)
+          val op_basic_e1 = compile_expr_to_basic(e1)
+          val op_basic_e2 = compile_expr_to_basic(e2)
+          val kontix_comp = (comp, basic_se1, basic_se2)
+          (op_basic_e1, op_basic_e2) match {
+            case (Some(basic_e1), Some(basic_e2)) =>  Some(T.BIf(kontix_comp, basic_e1, basic_e2))   
+            case _ => None  
+          }
+      case S.Op(o, e1, e2) =>
+        val basic_e1 = compile_simple_to_basic(e1)
+        val basic_e2 = compile_simple_to_basic(e2)
+        Some(T.Op(o, basic_e1, basic_e2))
+      case S.Prim(o, args) =>
+        var basic_args = args.foldLeft(List[T.BasicExpr]()) {
+          (acc, elt) => acc ++ List(compile_simple_to_basic(elt))
+        }
+        Some(T.Prim(o, basic_args))
+      case S.Call(_, _) => None
+    }
+  }
+
   def compile_expr_to_tail(e: S.Expr): T.TailExpr = {
     e match {
       /* pas sur */
@@ -136,8 +170,35 @@ object Anfix2Kontix {
       /* peut optimiser peut être simple */
       /* Yassine */
       case S.Let(id, e1, e2) =>
-        /* A peu prés le même code que le val */
-        T.Ret(T.Num(0))
+      /*
+        val basic_e1 = compile_simple_to_basic(e1)
+        val tail_e2 = compile_expr_to_tail(e2)
+        val cont_name = generateLabel()
+        val saves = get_variables_from_tail_expr(tail_e2)
+          if(contains_call(tail_e2)) {
+            T.PushCont(cont_name, saves, tail_e2)
+          } else {
+            T.Let(id, tail_e1, tail_e2)
+          }
+            */
+            throw CustomException("This should not happen")
+    
+
+          //throw CustomException("This should not happen")
+        /*
+        e1 match {
+          case Call(f, args) =>
+            var cont_name = generateLabel
+            var basic_f = compile_simple_to_basic(f)
+            var basic_args = args.foldLeft(List[T.BasicExpr]()) {
+              (acc, elt) => acc ++ List(compile_simple_to_basic(elt))
+            }
+            var call = T.Call(basic_f, basic_args)
+            var saves = get_variables_from_tail_expr(compile_expr_to_tail(e2))
+            T.PushCont(cont_name, saves, call)
+          
+        }
+        */
       case S.If(c, e2, e3) =>
         val (comparator, simple1, simple2) = c
         val (basic1, basic2) =
@@ -154,6 +215,38 @@ object Anfix2Kontix {
       /* Richard */
       case S.Prim(o, args) => handlePrim(o, args)
       case S.Call(f, args) => T.Ret(T.Num(0))
+    }
+  }
+
+  def get_variables_from_tail_expr(tail_expr : T.TailExpr) : List[T.Ident] = {
+    tail_expr match {
+      case T.Let(id, be, te) => 
+        id :: get_variables_from_basic_expr(be) ++ get_variables_from_tail_expr(te)
+      case T.If(_, te1, te2) =>
+        get_variables_from_tail_expr(te1) ++ get_variables_from_tail_expr(te2)
+      case T.Call(be, args) =>
+        get_variables_from_basic_expr(be) ++ 
+        args.foldLeft(List[T.Ident]()) {
+          (acc, elt) => acc ++ get_variables_from_basic_expr(elt)
+        }
+      case T.Ret(be) =>
+        get_variables_from_basic_expr(be)
+      case T.PushCont(_, saves, te) =>
+        saves ++ get_variables_from_tail_expr(te)
+    }
+  }
+
+  def get_variables_from_basic_expr(basic_expr : T.BasicExpr) : List[T.Ident] = {
+    basic_expr match {
+      case T.Var(id) => List(id)
+      case T.BLet(id, be1, be2) => id :: get_variables_from_basic_expr(be1) ++ get_variables_from_basic_expr(be2)
+      case T.BIf(_, be1, be2) => get_variables_from_basic_expr(be1) ++ get_variables_from_basic_expr(be2)
+      case T.Op(_, be1, be2) => get_variables_from_basic_expr(be1) ++ get_variables_from_basic_expr(be2)
+      case T.Prim(_, args) =>
+        args.foldLeft(List[T.Ident]()) { //à factoriser en une fonction
+          (acc, elt) => acc ++ get_variables_from_basic_expr(elt)
+        }
+      case _ => List()
     }
   }
 
