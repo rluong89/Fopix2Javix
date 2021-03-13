@@ -170,9 +170,27 @@ object Anfix2Kontix {
       /* peut optimiser peut être simple */
       /* Yassine */
       case S.Let(id, e1, e2) =>
-      /*
-        val basic_e1 = compile_simple_to_basic(e1)
-        val tail_e2 = compile_expr_to_tail(e2)
+        val op_basic_e1 = compile_expr_to_basic(e1)
+        val op_basic_e2 = compile_expr_to_basic(e2)
+        (op_basic_e1, op_basic_e2) match {
+          case (Some(basic_e1), Some(basic_e2)) => T.Ret(T.BLet(id, basic_e1, basic_e2))
+          case (Some(basic_e1), None) =>  T.Let(id, basic_e1, compile_expr_to_tail(e2))
+          case (None, None) =>
+            val cont_name = generateLabel()
+            val tail_e1 = compile_expr_to_tail(e1)
+            val tail_e2 = compile_expr_to_tail(e2)
+            val saves = get_variables_from_tail_expr(tail_e2)
+            T.DefCont(cont_name, saves, id, tail_e2)
+            T.PushCont(cont_name, saves, tail_e1)
+          case (None, Some(basic_e2)) =>
+            val cont_name = generateLabel()
+            val tail_e1 = compile_expr_to_tail(e1)
+            val saves = get_variables_from_basic_expr(basic_e2)
+            val tail_e2 = T.Ret(basic_e2)
+            T.DefCont(cont_name, saves, id, tail_e2)
+            T.PushCont(cont_name, saves, tail_e1)
+        }
+        /*
         val cont_name = generateLabel()
         val saves = get_variables_from_tail_expr(tail_e2)
           if(contains_call(tail_e2)) {
@@ -181,7 +199,7 @@ object Anfix2Kontix {
             T.Let(id, tail_e1, tail_e2)
           }
             */
-            throw CustomException("This should not happen")
+           // throw CustomException("This should not happen")
     
 
           //throw CustomException("This should not happen")
