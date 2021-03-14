@@ -91,7 +91,6 @@ object Fopix2Javix {
       main_space: List[T.Instruction],
       functions_space: List[T.Instruction]
   ): List[T.Instruction] = {
-    /* TODO: à completer, on ne s'occupe ici que du premier Val ! */
     p match {
       case Nil =>
         val program_instructions =
