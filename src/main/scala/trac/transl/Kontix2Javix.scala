@@ -3,25 +3,16 @@
 // TODO : To finish !!
 
 package trac.transl
-import trac.kontix.AST.Let
-import trac.kontix.AST.If
-import trac.kontix.AST.Call
-import trac.kontix.AST.Ret
-import trac.kontix.AST.PushCont
-import trac.kontix.AST.Num
-import trac.kontix.AST.Str
-import trac.kontix.AST.Fun
-import trac.kontix.AST.Var
-import trac.kontix.AST.BLet
-import trac.kontix.AST.BIf
-import trac.kontix.AST.Op
-import trac.kontix.AST.Prim
+import trac.kontix.AST
+import java.util.UUID
 import scala.collection.immutable
 
 object Kontix2Javix {
 
   import trac._
+
   import trac.PrimOp._
+  import trac.BinOp._
   import trac.kontix.{AST => S}
   import trac.javix.{AST => T}
 
@@ -51,6 +42,10 @@ object Kontix2Javix {
       }
     })
     Math.max(pair._1, pair._2)
+  }
+
+ def generateLabel(s: String): String = {
+    s + "_" + UUID.randomUUID().toString
   }
 
   def compile(progname: String, p: S.Program): T.Program = {
@@ -117,11 +112,43 @@ object Kontix2Javix {
       /* Yassine */
       case S.BLet(id, e1, e2) => List()
       /* Richard */      
-      case S.BIf(c, e1, e2) => List()
-
+      case S.BIf((o, be1, be2), e1, e2) => 
+        val label_true = generateLabel("booleantrue")
+        val label_end = generateLabel("booleanend")
+        compile_basic_expr(be1, funEnv, env) ++ List(T.Unbox) ++
+        compile_basic_expr(be2, funEnv, env) ++ List(
+              T.Unbox,
+              T.Ificmp(o, label_true),
+              T.Push(0),
+              T.Goto(label_end),
+              T.Labelize(label_true),
+              T.Push(1),
+              T.Labelize(label_end),
+              T.Box
+          )
+        val label_false = generateLabel("iffalse")
+        val label_if_end = generateLabel("ifend")
+        compile_basic_expr(e1, funEnv, env) ++ List(
+          T.Unbox,
+          T.If(BinOp.toCmp(BinOp.Eq), label_false)
+        ) ++ compile_basic_expr(e1, funEnv, env) ++
+          List(
+            T.Goto(label_if_end),
+            T.Labelize(label_false)
+          ) ++ compile_basic_expr(e2, funEnv, env) ++
+          List(T.Labelize(label_if_end))
       /* Richard */
-      case S.Op(o, e1, e2) => List()
-
+      case S.Op(o, e1, e2) => 
+          compile_basic_expr(e1, funEnv, env) ++ List(T.Unbox) ++ compile_basic_expr(
+            e2,
+            funEnv,
+            env
+          ) ++
+            List(
+              T.Unbox,
+              T.IOp(o),
+              T.Box
+            )
       /* Yassine */
       case S.Prim(p, args) => handlePrim(p, args, funEnv, env)
     }
@@ -138,7 +165,7 @@ object Kontix2Javix {
   }
 
   def handlePrim(
-      p: T,
+      p: PrimOp.T,
       args: List[S.BasicExpr],
       funEnv: FunEnv,
       env: Env
