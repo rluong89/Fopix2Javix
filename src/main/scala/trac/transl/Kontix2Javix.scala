@@ -114,9 +114,9 @@ object Kontix2Javix {
         List(T.Push(fun_index), T.Box)
       case S.Var(id) => List(T.ALoad(env(id)))
 
-      /* Richard */
-      case S.BLet(id, e1, e2) => List()
       /* Yassine */
+      case S.BLet(id, e1, e2) => List()
+      /* Richard */      
       case S.BIf(c, e1, e2) => List()
 
       /* Richard */
