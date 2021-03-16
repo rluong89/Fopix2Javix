@@ -47,6 +47,7 @@ object Fopix2Javix {
       case Nil =>
         (list_label, funEnv)
       case S.Def(fid, _, _) :: p =>
+        // Index du tableswitch return + calls
         return_index += 1
         generateFunEnv(
           (funEnv + (fid -> funcount)),

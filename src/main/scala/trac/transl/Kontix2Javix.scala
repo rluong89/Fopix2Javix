@@ -22,15 +22,64 @@ object Kontix2Javix {
 
   /* maps fun/kont id to their tablewitch index */
   type FunEnv = Map[String, Int]
+
   // Pour les var JVM
   var count = 0
+
   // Pour le tableswitch
   var return_labels = List[String]()
-  var return_index = 1000
+  var fun_index = 1000
 
   // Fonction pour modifier la variable count
   def setCount(x: Int): Unit = {
     count = x
+  }
+
+  def computeStackUse(
+      p: List[T.Instruction],
+      currentStackUse: Int,
+      maxStackUse: Int
+  ): Int = {
+    p match {
+      case Nil    => maxStackUse
+      case h :: t =>
+        // A remanier pour les remises a 0
+        val stackInfo = javix.AST.stackUse(h)
+        if (stackInfo.needed > currentStackUse) {
+          throw new Invalid("Problème de stack")
+        }
+        val maxStack = Math.max(currentStackUse + stackInfo.max, maxStackUse)
+        computeStackUse(t, currentStackUse + stackInfo.delta, maxStackUse)
+    }
+  }
+
+  def generateFunEnv(
+      funEnv: FunEnv,
+      list_label: List[String],
+      p: List[S.Definition],
+      funcount: Int
+  ): (List[String], FunEnv) = {
+    p match {
+      case Nil =>
+        (list_label, funEnv)
+      case S.DefFun(fid, _, _) :: p =>
+        // Index du tableswitch return + calls
+        fun_index += 1
+        generateFunEnv(
+          (funEnv + (fid -> funcount)),
+          list_label ++ List(fid),
+          p,
+          funcount + 1
+        )
+      case S.DefCont(fid, _, _, _) :: p =>
+        fun_index += 1
+        generateFunEnv(
+          (funEnv + (fid -> funcount)),
+          list_label ++ List(fid),
+          p,
+          funcount + 1
+        )
+    }
   }
 
   def computeVarSize(instrs: List[T.Instruction]): Int = {
@@ -79,7 +128,22 @@ object Kontix2Javix {
     e match {
 
       /* Yassine */
-      case S.Let(id, e1, e2) => List()
+      case S.Let(id, e1, e2) =>
+        if (id.equals("_")) {
+          val old_count = count
+          val res = compile_basic_expr(e1, funEnv, env) ++ List(T.Pop) ++
+            compile_tail_expr(e2, funEnv, env)
+          setCount(old_count)
+          res
+        } else {
+          val current_count = count
+          val new_env = (env + (id -> current_count))
+          setCount(count + 1)
+          compile_basic_expr(e1, funEnv, env) ++ List(
+            T.AStore(current_count)
+          ) ++
+            compile_tail_expr(e2, funEnv, new_env)
+        }
 
       /* Richard */
       case S.If(c, e1, e2) => List()
@@ -121,7 +185,23 @@ object Kontix2Javix {
       case S.Var(id) => List(T.ALoad(env(id)))
 
       /* Yassine */
-      case S.BLet(id, e1, e2) => List()
+      case S.BLet(id, e1, e2) =>
+        if (id.equals("_")) {
+          val old_count = count
+          val res = compile_basic_expr(e1, funEnv, env) ++ List(T.Pop) ++
+            compile_basic_expr(e2, funEnv, env)
+          setCount(old_count)
+          res
+        } else {
+          val current_count = count
+          val new_env = (env + (id -> current_count))
+          setCount(count + 1)
+          compile_basic_expr(e1, funEnv, env) ++ List(
+            T.AStore(current_count)
+          ) ++
+            compile_basic_expr(e2, funEnv, new_env)
+        }
+
       /* Richard */
       case S.BIf((o, be1, be2), e1, e2) =>
         val label_true = generateLabel("booleantrue")
