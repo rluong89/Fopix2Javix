@@ -50,7 +50,7 @@ object Kontix2Javix {
     Math.max(pair._1, pair._2)
   }
 
- def generateLabel(s: String): String = {
+  def generateLabel(s: String): String = {
     s + "_" + UUID.randomUUID().toString
   }
 
@@ -116,7 +116,18 @@ object Kontix2Javix {
       case S.Call(e, args) => 
         args_storing(args, funEnv, env) ++ compile_basic_expr(e, funEnv, env)
       /* Yassine Manipulations de tableaux faire sortir les env et les kont */
-      case S.Ret(e) => List()
+      case S.Ret(e) =>
+        /*
+      ALoad(0)
+      Unbox
+      Puis calcul de be
+      AStore(2) ; resultat de be
+      Goto dispatch
+         */
+        val compiled_basic = compile_basic_expr(e, funEnv, env)
+        List(T.ALoad(0), T.Unbox, T.AStore(2)) ++ compiled_basic ++ List(
+          T.Goto("dispatch")
+        )
 
       /* Richard Creations de tableaux */
       case S.PushCont(c, saves, e) => 
@@ -143,21 +154,20 @@ object Kontix2Javix {
 
       /* Yassine */
       case S.BLet(id, e1, e2) => List()
-      /* Richard */      
-      case S.BIf((o, be1, be2), e1, e2) => 
-      //a factoriser
+      /* Richard */
+      case S.BIf((o, be1, be2), e1, e2) =>
         val label_true = generateLabel("booleantrue")
         val label_end = generateLabel("booleanend")
         compile_basic_expr(be1, funEnv, env) ++ List(T.Unbox) ++
-        compile_basic_expr(be2, funEnv, env) ++ List(
-              T.Unbox,
-              T.Ificmp(o, label_true),
-              T.Push(0),
-              T.Goto(label_end),
-              T.Labelize(label_true),
-              T.Push(1),
-              T.Labelize(label_end),
-              T.Box
+          compile_basic_expr(be2, funEnv, env) ++ List(
+            T.Unbox,
+            T.Ificmp(o, label_true),
+            T.Push(0),
+            T.Goto(label_end),
+            T.Labelize(label_true),
+            T.Push(1),
+            T.Labelize(label_end),
+            T.Box
           )
         val label_false = generateLabel("iffalse")
         val label_if_end = generateLabel("ifend")
@@ -171,17 +181,19 @@ object Kontix2Javix {
           ) ++ compile_basic_expr(e2, funEnv, env) ++
           List(T.Labelize(label_if_end))
       /* Richard */
-      case S.Op(o, e1, e2) => 
-          compile_basic_expr(e1, funEnv, env) ++ List(T.Unbox) ++ compile_basic_expr(
-            e2,
-            funEnv,
-            env
-          ) ++
-            List(
-              T.Unbox,
-              T.IOp(o),
-              T.Box
-            )
+      case S.Op(o, e1, e2) =>
+        compile_basic_expr(e1, funEnv, env) ++ List(
+          T.Unbox
+        ) ++ compile_basic_expr(
+          e2,
+          funEnv,
+          env
+        ) ++
+          List(
+            T.Unbox,
+            T.IOp(o),
+            T.Box
+          )
       /* Yassine */
       case S.Prim(p, args) => handlePrim(p, args, funEnv, env)
     }
