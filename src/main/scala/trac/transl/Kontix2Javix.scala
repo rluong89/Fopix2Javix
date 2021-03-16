@@ -67,14 +67,32 @@ object Kontix2Javix {
       funEnv: FunEnv,
       labelList: List[String]
       /*Definitions         Main            */
-  ): (List[T.Instruction], List[T.Instruction]) = {
+  ): (List[T.Instruction]) = {
     p match {
-      case Nil => (List(), List())
+      case Nil => List()
       /* Richard */
-      case S.DefCont(f, env, arg, e) :: tl => (List(), List())
+      case S.DefCont(f, formals_env, r, e) :: tl => 
+        val (store_instructions, extended_env) = store_env_args(formals_env, env)
+        val extended_env_with_r = extended_env + (r -> 2) 
+        get_val_from_env(0) ++ List(T.AStore(0)) ++ 
+        store_instructions ++ get_val_from_env(1) ++
+        List(T.AStore(1), T.ALoad(env(r))) ++ compile_tail_expr(e, funEnv, extended_env_with_r)
       /* Yassine */
-      case S.DefFun(f, args, e) :: tl => (List(), List())
+      case S.DefFun(f, args, e) :: tl => List()
     }
+  }
+
+  def store_env_args(args : List[S.Ident], env : Env) : (List[T.Instruction], Env) = {
+      val (instructions, _, extended_env) = args.foldLeft((List[T.Instruction](), 2, env)) { 
+        (acc, elt) =>
+          (acc._1 ++ get_val_from_env(acc._2) ++ 
+          List(T.AStore(acc._2 + 1)), acc._2 + 1, acc._3 + (elt -> (acc._2 + 1)))
+      }
+      (instructions, extended_env)
+  }
+
+  def get_val_from_env(i : Int) : List[T.Instruction] = {
+    List(T.ALoad(1), T.Push(i), T.AALoad)
   }
 
   def args_storing(
