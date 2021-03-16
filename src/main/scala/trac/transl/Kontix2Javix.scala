@@ -13,8 +13,14 @@ object Kontix2Javix {
 
   import trac.PrimOp._
   import trac.BinOp._
+  import trac.CompOp._
   import trac.kontix.{AST => S}
   import trac.javix.{AST => T}
+
+  final case class CustomException(
+      private val message: String = "",
+      private val cause: Throwable = None.orNull
+  ) extends Exception(message, cause)
 
   val oupsLabel = "oups"
 
@@ -110,14 +116,49 @@ object Kontix2Javix {
       funEnv: FunEnv,
       labelList: List[String]
       /*Definitions         Main            */
-  ): (List[T.Instruction], List[T.Instruction]) = {
+  ): (List[T.Instruction]) = {
     p match {
-      case Nil => (List(), List())
+      case Nil => List()
       /* Richard */
-      case S.DefCont(f, env, arg, e) :: tl => (List(), List())
+      case S.DefCont(f, formals_env, r, e) :: tl => 
+        val (store_instructions, extended_env) = store_env_args(formals_env, env)
+        val extended_env_with_r = extended_env + (r -> 2) 
+        get_val_from_env(0) ++ List(T.AStore(0)) ++ 
+        store_instructions ++ get_val_from_env(1) ++
+        List(T.AStore(1), T.ALoad(env(r))) ++ compile_tail_expr(e, funEnv, extended_env_with_r)
       /* Yassine */
-      case S.DefFun(f, args, e) :: tl => (List(), List())
+      case S.DefFun(f, args, e) :: tl => List()
     }
+  }
+
+  def store_env_args(args : List[S.Ident], env : Env) : (List[T.Instruction], Env) = {
+      val (instructions, _, extended_env) = args.foldLeft((List[T.Instruction](), 2, env)) { 
+        (acc, elt) =>
+          (acc._1 ++ get_val_from_env(acc._2) ++ 
+          List(T.AStore(acc._2 + 1)), acc._2 + 1, acc._3 + (elt -> (acc._2 + 1)))
+      }
+      (instructions, extended_env)
+  }
+
+  def get_val_from_env(i : Int) : List[T.Instruction] = {
+    List(T.ALoad(1), T.Push(i), T.AALoad)
+  }
+
+  def args_storing(
+      args: List[S.BasicExpr],
+      funEnv: FunEnv,
+      env: Env
+  ): List[T.Instruction] = {
+    val (compile_instrs, _, compile_store) =
+      args.foldLeft((List[T.Instruction](), 2, List[T.Instruction]())) {
+        (acc, elt) =>
+          (
+            acc._1 ++ compile_basic_expr(elt, funEnv, env),
+            acc._2 + 1,
+            T.AStore(acc._2) :: acc._3
+          )
+      }
+    compile_instrs ++ compile_store
   }
 
   def compile_tail_expr(
@@ -146,12 +187,17 @@ object Kontix2Javix {
         }
 
       /* Richard */
-      case S.If(c, e1, e2) => List()
-
+      case S.If((o, be1, be2), te1, te2) => 
+        val label_else = generateLabel("label_else")
+        compile_basic_expr(be1, funEnv, env) ++ compile_basic_expr(be2, funEnv, env) ++
+        List(T.Ificmp(neg(o), label_else)) ++
+        compile_tail_expr(te1, funEnv, env) ++ 
+        List(T.Labelize(label_else)) ++
+        compile_tail_expr(te2, funEnv, env)
       /* Richard => Direct Yassine => Indirect */
-      case S.Call(e, args) => List()
-
-      /* Yassine */
+      case S.Call(e, args) => 
+        args_storing(args, funEnv, env) ++ compile_basic_expr(e, funEnv, env)
+      /* Yassine Manipulations de tableaux faire sortir les env et les kont */
       case S.Ret(e) =>
         /*
       ALoad(0)
@@ -166,7 +212,10 @@ object Kontix2Javix {
         )
 
       /* Richard Creations de tableaux */
-      case S.PushCont(c, saves, e) => List()
+      case S.PushCont(c, saves, e) => 
+        val size = saves.length + 2
+        List(T.Push(size), T.ANewarray, T.Dup, T.ALoad(0), T.AAStore, T.Dup, T.ALoad(1), T.AAStore) ++ 
+        fill_array_from(2, saves, funEnv, env) ++ List(T.AStore(1))
     }
   }
 
@@ -180,8 +229,9 @@ object Kontix2Javix {
       case S.Num(n) => List(T.Push(n), T.Box)
       case S.Str(s) => List(T.Ldc(s))
       case S.Fun(fid) =>
-        val fun_index = funEnv(fid)
-        List(T.Push(fun_index), T.Box)
+        //val fun_index = funEnv(fid)
+        //List(T.Push(fun_index), T.Box)
+        List(T.Goto(fid))
       case S.Var(id) => List(T.ALoad(env(id)))
 
       /* Yassine */
@@ -247,14 +297,19 @@ object Kontix2Javix {
     }
   }
 
-  def generate_dup(n: Integer): List[T.Instruction] = {
-    def aux(n: Integer, acc: List[T.Instruction]): List[T.Instruction] = {
-      if (n == 0)
-        acc
-      else
-        aux(n - 1, T.Dup :: acc)
+  //we suppose that we have the array on top of the stack
+  def fill_array_from(i : Integer, l : List[Any], funEnv : FunEnv, env : Env) : List[T.Instruction] = {
+    val count = l.length
+    val (instructions, _) = l.foldLeft((List[T.Instruction](), i)) { (acc, elt) =>
+      val compiled_elt = 
+        elt match {
+          case elt : String => List(T.Ldc(elt))
+          case elt : S.BasicExpr => compile_basic_expr(elt, funEnv, env)
+          case _ => throw CustomException("Not handled")
+        }    
+      (acc._1 ++ List(T.Dup, T.Push(acc._2)) ++ compiled_elt ++ List(T.AAStore), acc._2 + 1)
     }
-    aux(n, List());
+    instructions
   }
 
   def handlePrim(
@@ -281,26 +336,8 @@ object Kontix2Javix {
             T.Box
           )
       case (Tuple, list) =>
-        val count = list.length
-
-        val l = list.foldLeft((List[T.Instruction](), 0)) { (acc, elt) =>
-          (
-            acc._1 ++ List(T.Push(acc._2)) ++ (compile_basic_expr(
-              elt,
-              funEnv,
-              env
-            )) ++ List(T.AAStore),
-            acc._2 + 1
-          )
-        }
-        List(T.Push(count), T.ANewarray) ++ generate_dup(count) ++ l._1
-      case (Printint, List(e1)) =>
-        compile_basic_expr(e1, funEnv, env) ++ List(
-          T.Unbox,
-          T.IPrint,
-          T.Push(0),
-          T.Box
-        )
+        List(T.Push(count), T.ANewarray) ++
+        fill_array_from(0, list, funEnv, env)
       case (Printstr, List(e1)) =>
         compile_basic_expr(e1, funEnv, env) ++ List(T.SPrint, T.Push(0), T.Box)
       case (Cat, List(e1, e2)) =>
