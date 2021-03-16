@@ -199,16 +199,6 @@ object Kontix2Javix {
     }
   }
 
-  def generate_dup(n: Integer): List[T.Instruction] = {
-    def aux(n: Integer, acc: List[T.Instruction]): List[T.Instruction] = {
-      if (n == 0)
-        acc
-      else
-        aux(n - 1, T.Dup :: acc)
-    }
-    aux(n, List());
-  }
-
   //we suppose that we have the array on top of the stack
   def fill_array_from(i : Integer, l : List[Any], funEnv : FunEnv, env : Env) : List[T.Instruction] = {
     val count = l.length

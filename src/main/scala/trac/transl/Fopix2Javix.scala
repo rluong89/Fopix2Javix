@@ -161,16 +161,6 @@ object Fopix2Javix {
     s + "_" + UUID.randomUUID().toString
   }
 
-  def generate_dup(n: Integer): List[T.Instruction] = {
-    def aux(n: Integer, acc: List[T.Instruction]): List[T.Instruction] = {
-      if (n == 0)
-        acc
-      else
-        aux(n - 1, T.Dup :: acc)
-    }
-    aux(n, List());
-  }
-
   def archiving(
       args: List[S.Expr],
       env: Env
@@ -309,7 +299,7 @@ object Fopix2Javix {
 
             val l = list.foldLeft((List[T.Instruction](), 0)) { (acc, elt) =>
               (
-                acc._1 ++ List(T.Push(acc._2)) ++ (compile_expr(
+                acc._1 ++ List(T.Dup, T.Push(acc._2)) ++ (compile_expr(
                   elt,
                   funEnv,
                   env
@@ -317,7 +307,7 @@ object Fopix2Javix {
                 acc._2 + 1
               )
             }
-            List(T.Push(count), T.ANewarray) ++ generate_dup(count) ++ l._1
+            List(T.Push(count), T.ANewarray) ++ l._1
           case (Printint, List(e1)) =>
             compile_expr(e1, funEnv, env) ++ List(
               T.Unbox,
