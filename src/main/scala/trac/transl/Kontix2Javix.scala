@@ -115,8 +115,8 @@ object Kontix2Javix {
       generateFunEnv(Map.empty, List[String](), definitions, 1000)
     //println(fun_index)
     //println(definitions)
-    //println("FUN ENV : " + funEnv)
-    //println("LIST LABEL : " + labelIndirectCall)
+    println("FUN ENV : " + funEnv)
+    println("LIST LABEL : " + labelIndirectCall)
     val initKont = List(T.Push(funEnv("__RET")), T.Box, T.AStore(0))
     val initEnv = List(T.Push(0), T.ANewarray, T.AStore(1))
     val retKont = List(T.Labelize("__RET"), T.Return)
@@ -135,7 +135,7 @@ object Kontix2Javix {
       T.Tableswitch(1000, labelIndirectCall, oupsLabel),
       T.Labelize(oupsLabel)
     )
-    //println(instrs)
+    // println(compiledDefs)
     T.Program(progname, instrs, varsize, stacksize)
   }
 
@@ -230,11 +230,11 @@ object Kontix2Javix {
   }
 
   def compile_tail_expr(
-      e: S.TailExpr,
+      be: S.TailExpr,
       funEnv: FunEnv,
       env: Env
   ): List[T.Instruction] = {
-    val res = e match {
+    val res = be match {
 
       /* Yassine */
       case S.Let(id, e1, e2) =>
@@ -258,19 +258,27 @@ object Kontix2Javix {
       /* Richard */
       case S.If((o, be1, be2), te1, te2) =>
         val label_else = generateLabel("label_else")
-        compile_basic_expr(be1, funEnv, env) ++ compile_basic_expr(
+        println("GROS IF")
+        compile_basic_expr(be1, funEnv, env) ++ List(
+          T.Unbox
+        ) ++ compile_basic_expr(
           be2,
           funEnv,
           env
-        ) ++
+        ) ++ List(T.Unbox) ++
           List(T.Ificmp(neg(o), label_else)) ++
           compile_tail_expr(te1, funEnv, env) ++
           List(T.Labelize(label_else)) ++
           compile_tail_expr(te2, funEnv, env)
+
       /* Richard => Direct Yassine => Indirect */
       // Doit mettre en place le call indirect pour tester
       case S.Call(e, args) =>
-        args_storing(args, funEnv, env) ++ compile_basic_expr(e, funEnv, env)
+        args_storing(args, funEnv, env) ++ compile_basic_expr(
+          e,
+          funEnv,
+          env
+        ) ++ List(T.Unbox, T.Goto("dispatch"))
       /* Yassine Manipulations de tableaux faire sortir les env et les kont */
       case S.Ret(e) =>
         val compiled_basic = compile_basic_expr(e, funEnv, env)
@@ -282,6 +290,12 @@ object Kontix2Javix {
       /* Richard Creations de tableaux */
       case S.PushCont(c, saves, e) =>
         val size = saves.length + 2
+        val inter = compile_tail_expr(
+          e,
+          funEnv,
+          env
+        )
+        //println("INTER : " + inter)
         List(
           T.Push(size),
           T.ANewarray,
@@ -294,8 +308,8 @@ object Kontix2Javix {
           T.ALoad(1),
           T.AAStore
         ) ++
-          fill_array_from(2, saves, funEnv, env) ++ List(T.AStore(1)) ++ 
-          List(T.Push(funEnv(c)), T.IStore(0)) ++ compile_tail_expr(e, funEnv, env)
+          fill_array_from(2, saves, funEnv, env) ++ List(T.AStore(1)) ++
+          List(T.Push(funEnv(c)), T.Box, T.AStore(0)) ++ inter
     }
     //  println("RES : " + res)
     //println("EXPR : " + e)
@@ -339,22 +353,24 @@ object Kontix2Javix {
 
       /* Richard */
       case S.BIf((o, be1, be2), e1, e2) =>
+        println(e)
         val label_true = generateLabel("booleantrue")
         val label_end = generateLabel("booleanend")
-        compile_basic_expr(be1, funEnv, env) ++ List(T.Unbox) ++
-          compile_basic_expr(be2, funEnv, env) ++ List(
-            T.Unbox,
-            T.Ificmp(o, label_true),
-            T.Push(0),
-            T.Goto(label_end),
-            T.Labelize(label_true),
-            T.Push(1),
-            T.Labelize(label_end),
-            T.Box
-          )
+        val compile_cond =
+          compile_basic_expr(be1, funEnv, env) ++ List(T.Unbox) ++
+            compile_basic_expr(be2, funEnv, env) ++ List(
+              T.Unbox,
+              T.Ificmp(o, label_true),
+              T.Push(0),
+              T.Goto(label_end),
+              T.Labelize(label_true),
+              T.Push(1),
+              T.Labelize(label_end),
+              T.Box
+            )
         val label_false = generateLabel("iffalse")
         val label_if_end = generateLabel("ifend")
-        compile_basic_expr(e1, funEnv, env) ++ List(
+        compile_cond ++ List(
           T.Unbox,
           T.If(BinOp.toCmp(BinOp.Eq), label_false)
         ) ++ compile_basic_expr(e1, funEnv, env) ++
@@ -380,8 +396,6 @@ object Kontix2Javix {
       /* Yassine */
       case S.Prim(p, args) => handlePrim(p, args, funEnv, env)
     }
-    println("RES : " + res)
-    println("EXPR : " + e)
     res
 
   }
