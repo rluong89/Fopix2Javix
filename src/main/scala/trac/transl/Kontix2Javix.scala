@@ -157,7 +157,7 @@ object Kontix2Javix {
         val currentRes =
           List(T.Labelize(f)) ++ get_val_from_env(0) ++ List(T.AStore(0)) ++
             store_instructions ++ get_val_from_env(1) ++
-            List(T.AStore(1), T.ALoad(env(r))) ++ compile_tail_expr(
+            List(T.AStore(1)) ++ compile_tail_expr(
               e,
               funEnv,
               extended_env_with_r
@@ -197,7 +197,7 @@ object Kontix2Javix {
       env: Env
   ): (List[T.Instruction], Env) = {
     val (instructions, _, extended_env) =
-      args.foldLeft((List[T.Instruction](), 2, env)) { (acc, elt) =>
+      args.foldLeft((List[T.Instruction](), 3, env)) { (acc, elt) =>
         (
           acc._1 ++ get_val_from_env(acc._2) ++
             List(T.AStore(acc._2 + 1)),
@@ -286,9 +286,11 @@ object Kontix2Javix {
           T.Push(size),
           T.ANewarray,
           T.Dup,
+          T.Push(0),
           T.ALoad(0),
           T.AAStore,
           T.Dup,
+          T.Push(1),
           T.ALoad(1),
           T.AAStore
         ) ++
