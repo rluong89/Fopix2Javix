@@ -6,6 +6,7 @@ package trac.transl
 import trac.kontix.AST
 import java.util.UUID
 import scala.collection.immutable
+import _root_.trac.javix.AST
 
 object Kontix2Javix {
 
@@ -30,7 +31,7 @@ object Kontix2Javix {
   type FunEnv = Map[String, Int]
 
   // Pour les var JVM
-  var count = 0
+  var count = 2
 
   // Pour le tableswitch
   var return_labels = List[String]()
@@ -67,7 +68,8 @@ object Kontix2Javix {
   ): (List[String], FunEnv) = {
     p match {
       case Nil =>
-        (list_label, funEnv)
+        fun_index += 1
+        (list_label ++ List("__RET"), (funEnv + ("__RET" -> funcount)))
       case S.DefFun(fid, _, _) :: p =>
         // Index du tableswitch return + calls
         fun_index += 1
@@ -108,10 +110,32 @@ object Kontix2Javix {
     val stacksize = 10000
     val env: Env = Map.empty
     val (definitions, tailexpr) = (p.defs, p.main)
+    //println(tailexpr)
     val (labelIndirectCall, funEnv) =
       generateFunEnv(Map.empty, List[String](), definitions, 1000)
-    val mainInstrs = compile_tail_expr(tailexpr, funEnv, env)
-    val instrs = mainInstrs ++ List(T.Return)
+    //println(fun_index)
+    //println(definitions)
+    //println("FUN ENV : " + funEnv)
+    //println("LIST LABEL : " + labelIndirectCall)
+    val initKont = List(T.Push(funEnv("__RET")), T.Box, T.AStore(0))
+    val initEnv = List(T.Push(0), T.ANewarray, T.AStore(1))
+    val retKont = List(T.Labelize("__RET"), T.Return)
+    val compiledDefs =
+      compile_definitions(definitions, env, funEnv, labelIndirectCall)
+    // println("INIT KONTENV :" + (initKont ++ initEnv))
+    val mainInstrs =
+      initKont ++ initEnv ++ compile_tail_expr(
+        tailexpr,
+        funEnv,
+        env
+      ) ++ retKont ++ compiledDefs
+    val instrs = mainInstrs ++ List(
+      T.Return,
+      T.Labelize("dispatch"),
+      T.Tableswitch(1000, labelIndirectCall, oupsLabel),
+      T.Labelize(oupsLabel)
+    )
+    //println(instrs)
     T.Program(progname, instrs, varsize, stacksize)
   }
 
@@ -129,13 +153,22 @@ object Kontix2Javix {
         val (store_instructions, extended_env) =
           store_env_args(formals_env, env)
         val extended_env_with_r = extended_env + (r -> 2)
-        get_val_from_env(0) ++ List(T.AStore(0)) ++
-          store_instructions ++ get_val_from_env(1) ++
-          List(T.AStore(1), T.ALoad(env(r))) ++ compile_tail_expr(
-            e,
-            funEnv,
-            extended_env_with_r
-          )
+        // println("OUIPDPAJZDPOAJZDJAZO")
+        val currentRes =
+          List(T.Labelize(f)) ++ get_val_from_env(0) ++ List(T.AStore(0)) ++
+            store_instructions ++ get_val_from_env(1) ++
+            List(T.AStore(1), T.ALoad(env(r))) ++ compile_tail_expr(
+              e,
+              funEnv,
+              extended_env_with_r
+            )
+        val recursive_res = compile_definitions(
+          tl,
+          env,
+          funEnv,
+          labelList
+        )
+        currentRes ++ recursive_res
       /* Yassine */
       case S.DefFun(f, args, e) :: tl =>
         // Arguments a partir de 2
@@ -148,12 +181,13 @@ object Kontix2Javix {
           List(T.Labelize(f)) ++ compile_tail_expr(e, funEnv, env_fun)
         // Plus de retour dispatch, swap
         setCount(old_count)
-        compile_definitions(
-          p,
+        val recursive_res = compile_definitions(
+          tl,
           env,
           funEnv,
           labelList
         )
+        function_instrs ++ recursive_res
 
     }
   }
@@ -200,10 +234,11 @@ object Kontix2Javix {
       funEnv: FunEnv,
       env: Env
   ): List[T.Instruction] = {
-    e match {
+    val res = e match {
 
       /* Yassine */
       case S.Let(id, e1, e2) =>
+        //print("LET" + count)
         if (id.equals("_")) {
           val old_count = count
           val res = compile_basic_expr(e1, funEnv, env) ++ List(T.Pop) ++
@@ -233,19 +268,14 @@ object Kontix2Javix {
           List(T.Labelize(label_else)) ++
           compile_tail_expr(te2, funEnv, env)
       /* Richard => Direct Yassine => Indirect */
+      // Doit mettre en place le call indirect pour tester
       case S.Call(e, args) =>
         args_storing(args, funEnv, env) ++ compile_basic_expr(e, funEnv, env)
       /* Yassine Manipulations de tableaux faire sortir les env et les kont */
       case S.Ret(e) =>
-        /*
-      ALoad(0)
-      Unbox
-      Puis calcul de be
-      AStore(2) ; resultat de be
-      Goto dispatch
-         */
         val compiled_basic = compile_basic_expr(e, funEnv, env)
-        List(T.ALoad(0), T.Unbox, T.AStore(2)) ++ compiled_basic ++ List(
+        List(T.ALoad(0), T.Unbox) ++ compiled_basic ++ List(
+          T.AStore(2),
           T.Goto("dispatch")
         )
 
@@ -264,6 +294,9 @@ object Kontix2Javix {
         ) ++
           fill_array_from(2, saves, funEnv, env) ++ List(T.AStore(1))
     }
+    //  println("RES : " + res)
+    //println("EXPR : " + e)
+    res
   }
 
   def compile_basic_expr(
@@ -271,14 +304,14 @@ object Kontix2Javix {
       funEnv: FunEnv,
       env: Env
   ): List[T.Instruction] = {
-    e match {
+    val res = e match {
       /* Yassine */
-      case S.Num(n)   => List(T.Push(n), T.Box)
-      case S.Str(s)   => List(T.Ldc(s))
+      case S.Num(n) => List(T.Push(n), T.Box)
+      case S.Str(s) => List(T.Ldc(s))
       case S.Fun(fid) =>
-        //val fun_index = funEnv(fid)
-        //List(T.Push(fun_index), T.Box)
-        List(T.Goto(fid))
+        val fun_index = funEnv(fid)
+        List(T.Push(fun_index), T.Box)
+      //List(T.Goto(fid))
       case S.Var(id) => List(T.ALoad(env(id)))
 
       /* Yassine */
@@ -291,12 +324,14 @@ object Kontix2Javix {
           res
         } else {
           val current_count = count
+          // println(count)
           val new_env = (env + (id -> current_count))
           setCount(count + 1)
-          compile_basic_expr(e1, funEnv, env) ++ List(
+          val r = compile_basic_expr(e1, funEnv, env) ++ List(
             T.AStore(current_count)
           ) ++
             compile_basic_expr(e2, funEnv, new_env)
+          r
         }
 
       /* Richard */
@@ -342,6 +377,10 @@ object Kontix2Javix {
       /* Yassine */
       case S.Prim(p, args) => handlePrim(p, args, funEnv, env)
     }
+    println("RES : " + res)
+    println("EXPR : " + e)
+    res
+
   }
 
   //we suppose that we have the array on top of the stack
