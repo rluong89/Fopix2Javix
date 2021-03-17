@@ -110,10 +110,9 @@ object Kontix2Javix {
     val stacksize = 10000
     val env: Env = Map.empty
     val (definitions, tailexpr) = (p.defs, p.main)
-    println(tailexpr)
+    //println(tailexpr)
     val (labelIndirectCall, funEnv) =
       generateFunEnv(Map.empty, List[String](), definitions, 1000)
-
     //println(fun_index)
     //println(definitions)
     //println("FUN ENV : " + funEnv)
@@ -131,6 +130,7 @@ object Kontix2Javix {
         env
       ) ++ retKont ++ compiledDefs
     val instrs = mainInstrs ++ List(
+      T.Return,
       T.Labelize("dispatch"),
       T.Tableswitch(1000, labelIndirectCall, oupsLabel),
       T.Labelize(oupsLabel)
@@ -270,11 +270,7 @@ object Kontix2Javix {
       /* Richard => Direct Yassine => Indirect */
       // Doit mettre en place le call indirect pour tester
       case S.Call(e, args) =>
-        args_storing(args, funEnv, env) ++ compile_basic_expr(
-          e,
-          funEnv,
-          env
-        ) ++ List(T.Unbox, T.Goto("dispatch"))
+        args_storing(args, funEnv, env) ++ compile_basic_expr(e, funEnv, env)
       /* Yassine Manipulations de tableaux faire sortir les env et les kont */
       case S.Ret(e) =>
         val compiled_basic = compile_basic_expr(e, funEnv, env)
@@ -298,9 +294,8 @@ object Kontix2Javix {
           T.ALoad(1),
           T.AAStore
         ) ++
-          fill_array_from(2, saves, funEnv, env) ++ List(
-            T.AStore(1)
-          ) ++ compile_tail_expr(e, funEnv, env)
+          fill_array_from(2, saves, funEnv, env) ++ List(T.AStore(1)) ++ 
+          List(T.Push(funEnv(c)), T.IStore(0)) ++ compile_tail_expr(e, funEnv, env)
     }
     //  println("RES : " + res)
     //println("EXPR : " + e)
@@ -385,8 +380,8 @@ object Kontix2Javix {
       /* Yassine */
       case S.Prim(p, args) => handlePrim(p, args, funEnv, env)
     }
-    // println("RES : " + res)
-    // println("EXPR : " + e)
+    println("RES : " + res)
+    println("EXPR : " + e)
     res
 
   }
