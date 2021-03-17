@@ -177,6 +177,9 @@ object Kontix2Javix {
         }
         val old_count = count
         setCount(args.size + 2)
+        if (f.equals("map")) {
+          println("ENV MAP : " + env_fun)
+        }
         val function_instrs =
           List(T.Labelize(f)) ++ compile_tail_expr(e, funEnv, env_fun)
         // Plus de retour dispatch, swap
@@ -223,7 +226,7 @@ object Kontix2Javix {
           (
             acc._1 ++ compile_basic_expr(elt, funEnv, env),
             acc._2 + 1,
-            T.AStore(acc._2) :: acc._3
+            T.AStore(acc._2) :: (List(T.Comment("ENV : " + env)) ++ acc._3)
           )
       }
     compile_instrs ++ compile_store
@@ -274,16 +277,21 @@ object Kontix2Javix {
       /* Richard => Direct Yassine => Indirect */
       // Doit mettre en place le call indirect pour tester
       case S.Call(e, args) =>
-        args_storing(args, funEnv, env) ++ compile_basic_expr(
+        val be = compile_basic_expr(
           e,
           funEnv,
           env
-        ) ++ List(T.Unbox, T.Goto("dispatch"))
+        )
+        be ++ args_storing(args, funEnv, env) ++ List(
+          T.Unbox,
+          T.Goto("dispatch")
+        )
       /* Yassine Manipulations de tableaux faire sortir les env et les kont */
       case S.Ret(e) =>
         val compiled_basic = compile_basic_expr(e, funEnv, env)
         List(T.ALoad(0), T.Unbox) ++ compiled_basic ++ List(
           T.AStore(2),
+          T.Comment("YO"),
           T.Goto("dispatch")
         )
 
