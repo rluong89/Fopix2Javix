@@ -197,7 +197,7 @@ object Kontix2Javix {
       env: Env
   ): (List[T.Instruction], Env) = {
     val (instructions, _, extended_env) =
-      args.foldLeft((List[T.Instruction](), 3, env)) { (acc, elt) =>
+      args.foldLeft((List[T.Instruction](), 2, env)) { (acc, elt) =>
         (
           acc._1 ++ get_val_from_env(acc._2) ++
             List(T.AStore(acc._2 + 1)),
@@ -412,7 +412,7 @@ object Kontix2Javix {
       (acc, elt) =>
         val compiled_elt =
           elt match {
-            case elt: String      => List(T.Ldc(elt))
+            case elt: String      => List(T.ALoad(env(elt)))
             case elt: S.BasicExpr => compile_basic_expr(elt, funEnv, env)
             case _                => throw CustomException("Not handled")
           }
@@ -450,7 +450,7 @@ object Kontix2Javix {
             T.Box
           )
       case (Tuple, list) =>
-        List(T.Push(count), T.ANewarray) ++
+        List(T.Push(list.length), T.ANewarray) ++
           fill_array_from(0, list, funEnv, env)
       case (Printint, List(e1)) =>
         compile_basic_expr(e1, funEnv, env) ++ List(
