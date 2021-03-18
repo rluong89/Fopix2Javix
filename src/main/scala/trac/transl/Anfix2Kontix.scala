@@ -32,6 +32,7 @@ object Anfix2Kontix {
 
   var global_kont: List[T.Definition] = List()
 
+  // Vérifie si une Definition est une Val
   def isVal(e: S.Definition): Boolean = {
     e match {
       case Val(_, _)         => true
@@ -39,7 +40,7 @@ object Anfix2Kontix {
     }
   }
 
-  // Fonction qui permettera de compiler le main en suite de let
+  // Fonction qui permettera de compiler une suite de val en suite de let
   def mainToLetRecursive(p: S.Program): (S.Expr, List[S.Definition]) = {
     p match {
       case Nil => (S.Simple(S.Num(0)), List())
@@ -57,6 +58,7 @@ object Anfix2Kontix {
     }
   }
 
+  // Traduit un main Anfix en suite de Let
   def mainToLet(p: S.Program): S.Program = {
     val vals_definitions = p.filter(isVal)
     val def_definitions = p.filter(x => !isVal(x))
@@ -68,6 +70,7 @@ object Anfix2Kontix {
     }
   }
 
+  // Gére la passe Anfix à Kontix
   def trans(p: S.Program): T.Program = {
     val immuetableList = List()
     val cleanProgram: List[S.Definition] = mainToLet(p)
@@ -83,58 +86,32 @@ object Anfix2Kontix {
     new_label
   }
 
+  // Compile les définitions Anfix
   def compile_definitions(
       p: S.Program,
       nestedEnv: List[String]
   ): (List[T.Definition], T.TailExpr) = {
     p match {
       case Nil => (List(), T.Ret(T.Num(0)))
-      /* Yassine */
       case S.Val(id, e) :: tl =>
         if (!id.equals("_")) {
-          throw CustomException("THIS SHOULD NOT HAPPENTTT" + id)
+          throw CustomException("This should Not Happen")
         }
-        //Liste immutable ?
-        // J'étends l'environnement seulement si nécessaire
-        /*val new_list = if (id.equals("_")) { nestedEnv }
-        else { id :: nestedEnv }
-        // On calcule le reste
-        val recursive_res = compile_definitions(tl, new_list)
-        // Match pour savoir si on peut traduir en BasicExpr
-        e match {
-          case S.Simple(e) =>
-            (
-              recursive_res._1,
-              T.Let(id, compile_simple_to_basic(e), recursive_res._2)
-            )
-          case e =>
-            // Generation de la continuation + Lancement de celle-ci
-            val generatedLabel = generateLabel()
-            // Crée une classe qui fournis des générateur de label ?
-            val tailexpr = compile_expr_to_tail(e)
-            val defkont = T.DefCont(generatedLabel, nestedEnv, id, tailexpr)
-            val pushkont =
-              T.PushCont(generatedLabel, nestedEnv, recursive_res._2)
-            val new_definitions = defkont :: recursive_res._1
-            val new_tailexpr = pushkont
-            (new_definitions, new_tailexpr)
-        }*/
         val recursive_res = compile_definitions(tl, nestedEnv)
         (recursive_res._1, compile_expr_to_tail(e))
-
-      /* Richard */
       case S.Def(fid, args, e) :: tl =>
         val tail_expr = compile_expr_to_tail(e)
-        val def_fun = T.DefFun(fid, args, tail_expr) 
+        val def_fun = T.DefFun(fid, args, tail_expr)
         val recursive_res = compile_definitions(tl, nestedEnv)
         (def_fun :: recursive_res._1, recursive_res._2)
     }
   }
 
-  def simple_list_to_basic_list(l : List[S.SimplExpr]) : List[T.BasicExpr]= {
+  def simple_list_to_basic_list(l: List[S.SimplExpr]): List[T.BasicExpr] = {
     l.map(e => compile_simple_to_basic(e))
   }
 
+  // Permet de compiler une expression en basicExpr si possible
   def compile_expr_to_basic(e: S.Expr): Option[T.BasicExpr] = {
     e match {
       case S.Simple(e) => Some(compile_simple_to_basic(e))
@@ -171,10 +148,7 @@ object Anfix2Kontix {
 
   def compile_expr_to_tail(e: S.Expr): T.TailExpr = {
     e match {
-      /* pas sur */
       case S.Simple(e) => T.Ret(compile_simple_to_basic(e))
-      /* peut optimiser peut être simple */
-      /* Yassine */
       case S.Let(id, e1, e2) =>
         val op_basic_e1 = compile_expr_to_basic(e1)
         val op_basic_e2 = compile_expr_to_basic(e2)
@@ -190,7 +164,9 @@ object Anfix2Kontix {
             //val saves = get_variables_from_tail_expr(tail_e2).distinct
             val saves = get_variables_from_expr(e2).distinct
             val filtered_saves = saves.filter(_ != id)
-            global_kont ++= List(T.DefCont(cont_name, filtered_saves, id, tail_e2))
+            global_kont ++= List(
+              T.DefCont(cont_name, filtered_saves, id, tail_e2)
+            )
             T.PushCont(cont_name, filtered_saves, tail_e1)
           case (None, Some(basic_e2)) =>
             val cont_name = generateLabel()
@@ -199,7 +175,9 @@ object Anfix2Kontix {
             val saves = get_variables_from_expr(e2).distinct
             val filtered_saves = saves.filter(_ != id)
             val tail_e2 = T.Ret(basic_e2)
-            global_kont ++= List(T.DefCont(cont_name, filtered_saves, id, tail_e2))
+            global_kont ++= List(
+              T.DefCont(cont_name, filtered_saves, id, tail_e2)
+            )
             T.PushCont(cont_name, filtered_saves, tail_e1)
         }
       /*
@@ -229,17 +207,17 @@ object Anfix2Kontix {
         val ed = compile_simple_to_basic(e2)
         T.Ret(T.Op(o, eg, ed))
       /* Richard */
-      case S.Prim(o, args) => 
+      case S.Prim(o, args) =>
         val simple_args = simple_list_to_basic_list(args)
         T.Ret(T.Prim(o, simple_args))
-      case S.Call(f, args) => 
+      case S.Call(f, args) =>
         val f_basic = compile_simple_to_basic(f)
         val args_basic = simple_list_to_basic_list(args)
         T.Call(f_basic, args_basic)
     }
   }
 
-/*
+  /*
   def get_variables_from_tail_expr(tail_expr: T.TailExpr): List[T.Ident] = {
     tail_expr match {
       case T.Let(id, be, te) =>
@@ -250,7 +228,7 @@ object Anfix2Kontix {
           id :: variables
         }
       case T.If((_, be1, be2), te1, te2) =>
-        get_variables_from_basic_expr(be1) ++ get_variables_from_basic_expr(be2) ++ 
+        get_variables_from_basic_expr(be1) ++ get_variables_from_basic_expr(be2) ++
         get_variables_from_tail_expr(te1) ++ get_variables_from_tail_expr(te2)
       case T.Call(be, args) =>
         get_variables_from_basic_expr(be) ++
@@ -275,7 +253,7 @@ object Anfix2Kontix {
           id :: variables
         }
       case T.BIf((c, se1, se2), be1, be2) =>
-        get_variables_from_basic_expr(se1) ++ get_variables_from_basic_expr(se2) ++ 
+        get_variables_from_basic_expr(se1) ++ get_variables_from_basic_expr(se2) ++
         get_variables_from_basic_expr(be1) ++ get_variables_from_basic_expr(be2)
       case T.Op(_, be1, be2) =>
         get_variables_from_basic_expr(be1) ++ get_variables_from_basic_expr(be2)
@@ -286,35 +264,42 @@ object Anfix2Kontix {
       case _ => List()
     }
   }
-  */
-def get_variables_from_expr(e: S.Expr): List[S.Ident] = {
-  e match {
-    case S.Simple(e) => get_variables_from_simple(e)
-    case S.Let(id, e1, e2) =>
-      get_variables_from_expr(e1) ++ get_variables_from_expr(e2).filter(_ != id)
-    case S.If((_, se1, se2), e2, e3) =>
-      get_variables_from_simple(se1) ++ get_variables_from_simple(se2) ++
-      get_variables_from_expr(e2) ++ get_variables_from_expr(e3)
-    case S.Op(_, se1, se2) => 
-      get_variables_from_simple(se1) ++ get_variables_from_simple(se2)
-    case S.Prim(_, args) =>
-      args.foldLeft(List[T.Ident]()) { //à factoriser en une fonction
-        (acc, elt) => acc ++ get_variables_from_simple(elt)
-      }
-    case S.Call(f, args) =>
-      get_variables_from_simple(f) ++ args.foldLeft(List[T.Ident]()) { //à factoriser en une fonction
+   */
+
+  // Récupére les Variables des Expressions
+  def get_variables_from_expr(e: S.Expr): List[S.Ident] = {
+    e match {
+      case S.Simple(e) => get_variables_from_simple(e)
+      case S.Let(id, e1, e2) =>
+        get_variables_from_expr(e1) ++ get_variables_from_expr(e2).filter(
+          _ != id
+        )
+      case S.If((_, se1, se2), e2, e3) =>
+        get_variables_from_simple(se1) ++ get_variables_from_simple(se2) ++
+          get_variables_from_expr(e2) ++ get_variables_from_expr(e3)
+      case S.Op(_, se1, se2) =>
+        get_variables_from_simple(se1) ++ get_variables_from_simple(se2)
+      case S.Prim(_, args) =>
+        args.foldLeft(List[T.Ident]()) { //à factoriser en une fonction
           (acc, elt) => acc ++ get_variables_from_simple(elt)
         }
+      case S.Call(f, args) =>
+        get_variables_from_simple(f) ++ args
+          .foldLeft(List[T.Ident]()) { //à factoriser en une fonction
+            (acc, elt) => acc ++ get_variables_from_simple(elt)
+          }
+    }
   }
-}
 
-def get_variables_from_simple(se: S.SimplExpr) : List[S.Ident] = {
-  se match {
-    case S.Var(id) => List(id)
-    case _ => List()
+  // Récupére une variable a partir d'une SimpleExpr si possible
+  def get_variables_from_simple(se: S.SimplExpr): List[S.Ident] = {
+    se match {
+      case S.Var(id) => List(id)
+      case _         => List()
+    }
   }
-}
 
+  // Gére le cas des Simple
   def compile_simple_to_basic(e: S.SimplExpr): T.BasicExpr = {
     e match {
       case S.Num(n)   => T.Num(n)

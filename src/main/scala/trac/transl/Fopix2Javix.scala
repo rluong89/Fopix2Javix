@@ -15,17 +15,16 @@ object Fopix2Javix {
   import trac.BinOp._
   import trac.fopix.{AST => S}
   import trac.javix.{AST => T}
-
-  /* /!\ Attention, le code suivant n'est qu'une suggestion pour commencer.
-   * Il est probablement à remanier encore (structures en plus, arguments
-   * supplémentaires, ...) */
+  // Label oups
   val oupsLabel = "oups"
 
+  // Environnement de ariables
   type Env = Map[S.Ident, Int]
 
-  /* maps fun ids to their tablewitch index */
+  /* Environnement de fonction fid -> index de fonction */
   type FunEnv = Map[S.FunIdent, Int]
 
+  // Permet de calculer le nombre de variables nécessaires
   def computeVarSize(instrs: List[T.Instruction]): Int = {
     val pair = instrs.foldLeft((0, 0))((acc, elt) => {
       elt match {
@@ -37,6 +36,7 @@ object Fopix2Javix {
     Math.max(pair._1, pair._2)
   }
 
+  // Permet de générer l'environnement de fonction + la liste des labels de fonctions
   def generateFunEnv(
       funEnv: FunEnv,
       list_label: List[String],
@@ -47,7 +47,6 @@ object Fopix2Javix {
       case Nil =>
         (list_label, funEnv)
       case S.Def(fid, _, _) :: p =>
-        // Index du tableswitch return + calls
         return_index += 1
         generateFunEnv(
           (funEnv + (fid -> funcount)),
@@ -58,8 +57,9 @@ object Fopix2Javix {
       case _ :: p => generateFunEnv(funEnv, list_label, p, funcount)
     }
   }
-
+  // Passe direct Fopix2Javix
   def compile(progname: String, p: S.Program): T.Program = {
+    // Taille de pile incalculable
     val stacksize = 10000
     val env: Env = Map.empty
     val (labelIndirectCall, funEnv) =
@@ -76,14 +76,20 @@ object Fopix2Javix {
     val varsize = computeVarSize(instrs)
     T.Program(progname, instrs, varsize, stacksize)
   }
+  // Variable globale qui permet de générer l'environnement
   var count = 0
+
+  // Liste label de retours + call indirects
   var return_labels = List[String]()
+  // Variable pour générer les index de retour + call indirects
   var return_index = 1000
 
+  // Fonction pour modifier count
   def setCount(x: Int): Unit = {
     count = x
   }
 
+  // Compile les definitions
   def compile_definitions(
       p: List[S.Definition],
       env: Env,
@@ -96,6 +102,8 @@ object Fopix2Javix {
       case Nil =>
         val program_instructions =
           main_space ++ List(T.Return) ++ functions_space
+        /* Cas final on renvoie les accumulateur main_space et functions_space
+            avec le dispatch s'il y a des appels de fonctions */
         if (return_labels.length == 0) {
           program_instructions
         } else {
@@ -106,6 +114,7 @@ object Fopix2Javix {
             List(T.Labelize(oupsLabel))
         }
       case S.Val(x, e) :: p =>
+        // On calcule e et on étend l'environnement si nécessaire
         val instructions = compile_expr(e, funEnv, env)
         val optionX = env get (x)
         val (newInstruction, new_env) =
@@ -149,19 +158,13 @@ object Fopix2Javix {
         )
     }
   }
-  /* TODO: ajouter une structure d'environnement des variables,
-   * du genre Map[S.Ident,T.Var] donnant le numéro de la variable Javix
-   * correspondant à un nom de variable Fopix */
 
-  /* Invariant :
-   *  A l'exécution, le code généré par compile_expr(e) aura l'effet suivant :
-   *    pile ==> pile,v  avec v la valeur résultat de l'évaluation de e
-   */
-
+  // Fonction pour générer des Labels unique
   def generateLabel(s: String): String = {
     s + "_" + UUID.randomUUID().toString
   }
 
+  // Fonction d'archivage des arguments
   def archiving(
       args: List[S.Expr],
       env: Env
@@ -177,12 +180,14 @@ object Fopix2Javix {
     (instructions, archiving_indexes)
   }
 
+  // Restore les variables de la JVM après l'appel d'une fonction
   def restoration(archiving_indexes: List[Integer]): List[T.Instruction] = {
     archiving_indexes.foldLeft(List[T.Instruction]()) { (acc, elt) =>
       acc ++ List(T.Swap, T.AStore(elt))
     }
   }
 
+  // Permet de Store les arguments de fonction dans les variables JVM
   def args_storing(
       args: List[S.Expr],
       funEnv: FunEnv,
@@ -200,6 +205,7 @@ object Fopix2Javix {
     compile_instrs ++ compile_store
   }
 
+  // Compile une Expr
   def compile_expr(e: S.Expr, funEnv: FunEnv, env: Env): List[T.Instruction] = {
     e match {
       case S.Num(n) => List(T.Push(n), T.Box)
@@ -325,8 +331,6 @@ object Fopix2Javix {
               env
             ) ++ List(T.SCat)
         }
-      case _ =>
-        List() // TODO : traiter tous les cas manquants !
     }
   }
 

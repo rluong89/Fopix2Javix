@@ -7,33 +7,6 @@ import trac.kontix.AST
 import java.util.UUID
 import scala.collection.immutable
 import _root_.trac.javix.AST
-import trac.javix.AST.Labelize
-import trac.javix.AST.Comment
-import trac.javix.AST.Box
-import trac.javix.AST.Unbox
-import trac.javix.AST.Checkarray
-import trac.javix.AST.IPrint
-import trac.javix.AST.Push
-import trac.javix.AST.IOp
-import trac.javix.AST.Ificmp
-import trac.javix.AST.If
-import trac.javix.AST.Pop
-import trac.javix.AST.Swap
-import trac.javix.AST.Dup
-import trac.javix.AST.AStore
-import trac.javix.AST.ALoad
-import trac.javix.AST.IStore
-import trac.javix.AST.ILoad
-import trac.javix.AST.Goto
-import trac.javix.AST.ANewarray
-import trac.javix.AST.AAStore
-import trac.javix.AST.AALoad
-import trac.javix.AST.Return
-import trac.javix.AST.Tableswitch
-import trac.javix.AST.Ldc
-import trac.javix.AST.SCat
-import trac.javix.AST.SPrint
-import trac.javix.AST.Checkstring
 
 object Kontix2Javix {
 
@@ -60,8 +33,7 @@ object Kontix2Javix {
   // Pour les var JVM
   var count = 2
 
-  // Pour le tableswitch
-  var return_labels = List[String]()
+  // Compteur pour gérer les index de fonction
   var fun_index = 1000
 
   // Fonction pour modifier la variable count
@@ -69,6 +41,7 @@ object Kontix2Javix {
     count = x
   }
 
+  // Calcul de taille de pile
   def computeStackUse(
       p: List[T.Instruction],
       currentStackUse: Int,
@@ -82,27 +55,25 @@ object Kontix2Javix {
         val maxStack = Math.max(currentStackUse + stackInfo.max, maxStackUse)
 
         val newCurrentStack = h match {
-          case Goto("dispatch") => currentStackUse
-          case Goto(s) =>
+          case T.Goto("dispatch") => currentStackUse
+          case T.Goto(s) =>
             if (s.startsWith("endbif")) {
-              println("OUI")
               currentStackUse - 1
             } else { 0 }
-          case Labelize(s) =>
+          case T.Labelize(s) =>
             if (s.startsWith("label_bifelse") || s.startsWith("endbif")) {
               currentStackUse
             } else { 0 }
           case _ =>
             currentStackUse + stackInfo.delta
         }
-        /* println(
-          "INSTR : " + h + " APRES : \n MAX : " + maxStack + " currentSTACK : " + newCurrentStack
-        )*/
         computeStackUse(t, newCurrentStack, maxStack)
 
     }
   }
 
+  // Génére l'environnement de fonction, continuation
+  // et la liste de label de fonctions, continuation
   def generateFunEnv(
       funEnv: FunEnv,
       list_label: List[String],
@@ -133,6 +104,7 @@ object Kontix2Javix {
     }
   }
 
+  // Calcul de nombre de variables
   def computeVarSize(instrs: List[T.Instruction]): Int = {
     val pair = instrs.foldLeft((0, 0))((acc, elt) => {
       elt match {
@@ -144,10 +116,12 @@ object Kontix2Javix {
     Math.max(pair._1, pair._2)
   }
 
+  // Génére un Label unique
   def generateLabel(s: String): String = {
     s + "_" + UUID.randomUUID().toString
   }
 
+  // Passe Kontix à Javix
   def compile(progname: String, p: S.Program): T.Program = {
 
     val env: Env = Map.empty
@@ -159,34 +133,35 @@ object Kontix2Javix {
     val retKont = List(T.Labelize("__RET"), T.Return)
     val compiledDefs =
       compile_definitions(definitions, env, funEnv, labelIndirectCall)
+    // Instruction du main
     val mainInstrs =
       initKont ++ initEnv ++ compile_tail_expr(
         tailexpr,
         funEnv,
         env
       ) ++ retKont ++ compiledDefs
+    // Code du programme
     val instrs = mainInstrs ++ List(
       T.Return,
       T.Labelize("dispatch"),
       T.Tableswitch(1000, labelIndirectCall, oupsLabel),
       T.Labelize(oupsLabel)
     )
+    // Calcul variables et taille de pile
     val varsize = computeVarSize(instrs)
     val stacksize = computeStackUse(instrs, 0, 0)
-    println("MY MAX : " + stacksize)
     T.Program(progname, instrs, varsize, stacksize)
   }
 
+  // Compilation des définitions
   def compile_definitions(
       p: List[S.Definition],
       env: Env,
       funEnv: FunEnv,
       labelList: List[String]
-      /*Definitions         Main            */
   ): (List[T.Instruction]) = {
     p match {
       case Nil => List()
-      /* Richard */
       case S.DefCont(f, formals_env, r, e) :: tl =>
         val (store_instructions, extended_env) =
           store_env_args(formals_env, env)
@@ -206,7 +181,6 @@ object Kontix2Javix {
           labelList
         )
         currentRes ++ recursive_res
-      /* Yassine */
       case S.DefFun(f, args, e) :: tl =>
         // Arguments a partir de 2
         val (env_fun, _) = args.foldLeft((env, 2)) { (acc, elt) =>
@@ -216,7 +190,6 @@ object Kontix2Javix {
         setCount(args.size + 2)
         val function_instrs =
           List(T.Labelize(f)) ++ compile_tail_expr(e, funEnv, env_fun)
-        // Plus de retour dispatch, swap
         setCount(old_count)
         val recursive_res = compile_definitions(
           tl,
@@ -260,20 +233,19 @@ object Kontix2Javix {
           (
             acc._1 ++ compile_basic_expr(elt, funEnv, env),
             acc._2 + 1,
-            T.AStore(acc._2) :: (List(T.Comment("ENV : " + env)) ++ acc._3)
+            T.AStore(acc._2) :: acc._3
           )
       }
     compile_instrs ++ compile_store
   }
 
+  // Compilation des tailExpr
   def compile_tail_expr(
-      be: S.TailExpr,
+      e: S.TailExpr,
       funEnv: FunEnv,
       env: Env
   ): List[T.Instruction] = {
-    be match {
-
-      /* Yassine */
+    e match {
       case S.Let(id, e1, e2) =>
         if (id.equals("_")) {
           val old_count = count
@@ -291,7 +263,6 @@ object Kontix2Javix {
             compile_tail_expr(e2, funEnv, new_env)
         }
 
-      /* Richard */
       case S.If((o, be1, be2), te1, te2) =>
         val label_else = generateLabel("label_else")
         compile_basic_expr(be1, funEnv, env) ++ List(
@@ -306,8 +277,6 @@ object Kontix2Javix {
           List(T.Labelize(label_else)) ++
           compile_tail_expr(te2, funEnv, env)
 
-      /* Richard => Direct Yassine => Indirect */
-      // Doit mettre en place le call indirect pour tester
       case S.Call(e, args) =>
         val be = compile_basic_expr(
           e,
@@ -318,7 +287,6 @@ object Kontix2Javix {
           T.Unbox,
           T.Goto("dispatch")
         )
-      /* Yassine Manipulations de tableaux faire sortir les env et les kont */
       case S.Ret(e) =>
         val compiled_basic = compile_basic_expr(e, funEnv, env)
         List(T.ALoad(0), T.Unbox) ++ compiled_basic ++ List(
@@ -326,8 +294,6 @@ object Kontix2Javix {
           T.Comment("YO"),
           T.Goto("dispatch")
         )
-
-      /* Richard Creations de tableaux */
       case S.PushCont(c, saves, e) =>
         val size = saves.length + 2
         val inter = compile_tail_expr(
@@ -352,22 +318,19 @@ object Kontix2Javix {
     }
   }
 
+  // Compilation de basicExpr
   def compile_basic_expr(
       e: S.BasicExpr,
       funEnv: FunEnv,
       env: Env
   ): List[T.Instruction] = {
     e match {
-      /* Yassine */
       case S.Num(n) => List(T.Push(n), T.Box)
       case S.Str(s) => List(T.Ldc(s))
       case S.Fun(fid) =>
         val fun_index = funEnv(fid)
         List(T.Push(fun_index), T.Box)
-      //List(T.Goto(fid))
       case S.Var(id) => List(T.ALoad(env(id)))
-
-      /* Yassine */
       case S.BLet(id, e1, e2) =>
         if (id.equals("_")) {
           val old_count = count
@@ -385,8 +348,6 @@ object Kontix2Javix {
             compile_basic_expr(e2, funEnv, new_env)
           r
         }
-
-      /* Richard */
       case S.BIf((o, be1, be2), e1, e2) =>
         val label_else = generateLabel("label_bifelse")
         val label_end = generateLabel("endbif")
@@ -427,8 +388,6 @@ object Kontix2Javix {
           ) ++ compile_basic_expr(e2, funEnv, env) ++
           List(T.Labelize(label_if_end))
        */
-
-      /* Richard */
       case S.Op(o, e1, e2) =>
         compile_basic_expr(e1, funEnv, env) ++ List(
           T.Unbox
@@ -442,7 +401,6 @@ object Kontix2Javix {
             T.IOp(o),
             T.Box
           )
-      /* Yassine */
       case S.Prim(p, args) => handlePrim(p, args, funEnv, env)
     }
   }
@@ -473,6 +431,7 @@ object Kontix2Javix {
     instructions
   }
 
+  // Gére le cas des primitives
   def handlePrim(
       p: PrimOp.T,
       args: List[S.BasicExpr],

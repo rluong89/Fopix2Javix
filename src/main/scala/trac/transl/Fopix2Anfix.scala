@@ -27,6 +27,7 @@ object Fopix2Anfix {
       private val cause: Throwable = None.orNull
   ) extends Exception(message, cause)
 
+  // Passe Fopix2Anfix
   def trans(p: S.Program): T.Program = {
     p match {
       case Nil => List()
@@ -36,14 +37,18 @@ object Fopix2Anfix {
         List(T.Def(fid, args, trans_expr(e))) ++ trans(tl)
     }
   }
+
+  // Variable  count pour générer des noms de variables unique
   var _count = 0
 
+  // Permet de générer un nom de variable
   def generateLabel(): String = {
     val new_label = "x" + _count
     _count += 1
     new_label
   }
 
+  // Gére le cas des primitives
   def prim(args: List[S.Expr], acc: List[T.SimplExpr], p: PrimOp.T): T.Expr = {
     args match {
       case Nil => T.Prim(p, acc)
@@ -58,6 +63,7 @@ object Fopix2Anfix {
     }
   }
 
+  // Gére les appels de fonctions
   def call(
       args: List[S.Expr],
       acc: List[T.SimplExpr],
@@ -76,6 +82,7 @@ object Fopix2Anfix {
     }
   }
 
+  // Traduction des Expressions
   def trans_expr(e: S.Expr): T.Expr = {
     e match {
       case Num(n)   => T.Simple(T.Num(n))
@@ -83,20 +90,18 @@ object Fopix2Anfix {
       case Fun(fid) => T.Simple(T.Fun(fid))
       case Var(id)  => T.Simple(T.Var(id))
       case Let(id, e1, e2) =>
-        T.Let(id, trans_expr(e1), trans_expr(e2)) /* Yassine */
+        T.Let(id, trans_expr(e1), trans_expr(e2))
       case If(e1, e2, e3) =>
         val new_id = generateLabel()
         T.Let(
           new_id,
           trans_expr(e1),
           T.If(
-            /* Pas sur ptet 1 */
             (BinOp.toCmp(BinOp.Eq), T.Var(new_id), T.Num(1)),
             trans_expr(e2),
             trans_expr(e3)
           )
         )
-      /* Yassine */
       case Op(o, e1, e2) =>
         val trans_e1 = trans_expr(e1)
         val trans_e2 = trans_expr(e2)
@@ -108,12 +113,14 @@ object Fopix2Anfix {
         val trans_f = trans_expr(f)
         trans_f match {
           case Simple(se) => call(args, List[T.SimplExpr](), se)
-          case e => val funLabel = generateLabel()
-          T.Let(funLabel,e,call(args,List[T.SimplExpr](),T.Var(funLabel)))
+          case e =>
+            val funLabel = generateLabel()
+            T.Let(funLabel, e, call(args, List[T.SimplExpr](), T.Var(funLabel)))
+        }
     }
   }
-}
 
+  // Gére le cas des opérations arithmetiques
   def handleBinOpArith(
       trans_e1: T.Expr,
       trans_e2: T.Expr,
@@ -139,6 +146,8 @@ object Fopix2Anfix {
 
     }
   }
+
+  // Gére le cas des opérations de comparaison
   def handleBinOpCmp(trans_e1: T.Expr, trans_e2: T.Expr, o: BinOp.T): T.Expr = {
     (trans_e1, trans_e2) match {
       case (T.Simple(se1), T.Simple(se2)) =>
