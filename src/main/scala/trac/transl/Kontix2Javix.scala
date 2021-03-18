@@ -80,15 +80,24 @@ object Kontix2Javix {
         // A remanier pour les remises a 0
         val stackInfo = javix.AST.stackUse(h)
         val maxStack = Math.max(currentStackUse + stackInfo.max, maxStackUse)
+
         val newCurrentStack = h match {
           case Goto("dispatch") => currentStackUse
           case Goto(s) =>
-            if (s.startsWith("endbif")) { currentStackUse - 1 }
-            else { 0 }
-          case Labelize(_) => 0
+            if (s.startsWith("endbif")) {
+              println("OUI")
+              currentStackUse - 1
+            } else { 0 }
+          case Labelize(s) =>
+            if (s.startsWith("label_bifelse") || s.startsWith("endbif")) {
+              currentStackUse
+            } else { 0 }
           case _ =>
             currentStackUse + stackInfo.delta
         }
+        /* println(
+          "INSTR : " + h + " APRES : \n MAX : " + maxStack + " currentSTACK : " + newCurrentStack
+        )*/
         computeStackUse(t, newCurrentStack, maxStack)
 
     }
@@ -164,6 +173,7 @@ object Kontix2Javix {
     )
     val varsize = computeVarSize(instrs)
     val stacksize = computeStackUse(instrs, 0, 0)
+    println("MY MAX : " + stacksize)
     T.Program(progname, instrs, varsize, stacksize)
   }
 
