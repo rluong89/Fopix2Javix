@@ -33,7 +33,7 @@ object Kontix2Javix {
   // Pour les var JVM
   var count = 2
 
-  // Compteur pour gérer les index de fonction
+  // Compteur pour gérer les index de fonctions
   var fun_index = 1000
 
   // Fonction pour modifier la variable count
@@ -41,7 +41,7 @@ object Kontix2Javix {
     count = x
   }
 
-  // Calcul de taille de pile
+  // Calcul de la taille de la pile
   def computeStackUse(
       p: List[T.Instruction],
       currentStackUse: Int,
@@ -50,7 +50,7 @@ object Kontix2Javix {
     p match {
       case Nil    => maxStackUse
       case h :: t =>
-        // A remanier pour les remises a 0
+        // A remanier pour les remises à 0
         val stackInfo = javix.AST.stackUse(h)
         val maxStack = Math.max(currentStackUse + stackInfo.max, maxStackUse)
 
@@ -68,12 +68,11 @@ object Kontix2Javix {
             currentStackUse + stackInfo.delta
         }
         computeStackUse(t, newCurrentStack, maxStack)
-
     }
   }
 
-  // Génére l'environnement de fonction, continuation
-  // et la liste de label de fonctions, continuation
+  /* Génère l'environnement des fonctions, continuations
+     et la liste des label des fonctions, continuations */
   def generateFunEnv(
       funEnv: FunEnv,
       list_label: List[String],
@@ -123,7 +122,6 @@ object Kontix2Javix {
 
   // Passe Kontix à Javix
   def compile(progname: String, p: S.Program): T.Program = {
-
     val env: Env = Map.empty
     val (definitions, tailexpr) = (p.defs, p.main)
     val (labelIndirectCall, funEnv) =
@@ -182,7 +180,7 @@ object Kontix2Javix {
         )
         currentRes ++ recursive_res
       case S.DefFun(f, args, e) :: tl =>
-        // Arguments a partir de 2
+        // Arguments à partir de 2
         val (env_fun, _) = args.foldLeft((env, 2)) { (acc, elt) =>
           (acc._1 + (elt -> acc._2), acc._2 + 1)
         }
@@ -198,45 +196,7 @@ object Kontix2Javix {
           labelList
         )
         function_instrs ++ recursive_res
-
     }
-  }
-
-  def store_env_args(
-      args: List[S.Ident],
-      env: Env
-  ): (List[T.Instruction], Env) = {
-    val (instructions, _, extended_env) =
-      args.foldLeft((List[T.Instruction](), 2, env)) { (acc, elt) =>
-        (
-          acc._1 ++ get_val_from_env(acc._2) ++
-            List(T.AStore(acc._2 + 1)),
-          acc._2 + 1,
-          acc._3 + (elt -> (acc._2 + 1))
-        )
-      }
-    (instructions, extended_env)
-  }
-
-  def get_val_from_env(i: Int): List[T.Instruction] = {
-    List(T.ALoad(1), T.Push(i), T.AALoad)
-  }
-
-  def args_storing(
-      args: List[S.BasicExpr],
-      funEnv: FunEnv,
-      env: Env
-  ): List[T.Instruction] = {
-    val (compile_instrs, _, compile_store) =
-      args.foldLeft((List[T.Instruction](), 2, List[T.Instruction]())) {
-        (acc, elt) =>
-          (
-            acc._1 ++ compile_basic_expr(elt, funEnv, env),
-            acc._2 + 1,
-            T.AStore(acc._2) :: acc._3
-          )
-      }
-    compile_instrs ++ compile_store
   }
 
   // Compilation des tailExpr
@@ -283,7 +243,7 @@ object Kontix2Javix {
           funEnv,
           env
         )
-        be ++ args_storing(args, funEnv, env) ++ List(
+        be ++ args_compiling_storing(args, funEnv, env) ++ List(
           T.Unbox,
           T.Goto("dispatch")
         )
@@ -291,7 +251,6 @@ object Kontix2Javix {
         val compiled_basic = compile_basic_expr(e, funEnv, env)
         List(T.ALoad(0), T.Unbox) ++ compiled_basic ++ List(
           T.AStore(2),
-          T.Comment("YO"),
           T.Goto("dispatch")
         )
       case S.PushCont(c, saves, e) =>
@@ -318,7 +277,7 @@ object Kontix2Javix {
     }
   }
 
-  // Compilation de basicExpr
+  // Compilation des basicExpr
   def compile_basic_expr(
       e: S.BasicExpr,
       funEnv: FunEnv,
@@ -361,33 +320,6 @@ object Kontix2Javix {
           compile_basic_expr(e2, funEnv, env) ++
           List(T.Labelize(label_end))
 
-      /*
-        println(e)
-        val label_true = generateLabel("booleantrue")
-        val label_end = generateLabel("booleanend")
-        val compile_cond =
-          compile_basic_expr(be1, funEnv, env) ++ List(T.Unbox) ++
-            compile_basic_expr(be2, funEnv, env) ++ List(
-              T.Ificmp(o, label_true),
-              T.Push(0),
-              T.Goto(label_end),
-              T.Labelize(label_true),
-              T.Push(1),
-              T.Labelize(label_end),
-              T.Box
-            )
-        val label_false = generateLabel("iffalse")
-        val label_if_end = generateLabel("ifend")
-        compile_cond ++ List(
-          T.Unbox,
-          T.If(BinOp.toCmp(BinOp.Eq), label_false)
-        ) ++ compile_basic_expr(e1, funEnv, env) ++
-          List(
-            T.Goto(label_if_end),
-            T.Labelize(label_false)
-          ) ++ compile_basic_expr(e2, funEnv, env) ++
-          List(T.Labelize(label_if_end))
-       */
       case S.Op(o, e1, e2) =>
         compile_basic_expr(e1, funEnv, env) ++ List(
           T.Unbox
@@ -405,7 +337,50 @@ object Kontix2Javix {
     }
   }
 
-  //we suppose that we have the array on top of the stack
+  /*Stockage des arguments de l'environnement dans les variables de la JVM et
+    extension de l'environnement */
+  def store_env_args(
+      args: List[S.Ident],
+      env: Env
+  ): (List[T.Instruction], Env) = {
+    val (instructions, _, extended_env) =
+      args.foldLeft((List[T.Instruction](), 2, env)) { (acc, elt) =>
+        (
+          acc._1 ++ get_val_from_env(acc._2) ++
+            List(T.AStore(acc._2 + 1)),
+          acc._2 + 1,
+          acc._3 + (elt -> (acc._2 + 1))
+        )
+      }
+    (instructions, extended_env)
+  }
+
+  // Met le contenu de l'environnement à la case i sur le haut de la pile
+  def get_val_from_env(i: Int): List[T.Instruction] = {
+    List(T.ALoad(1), T.Push(i), T.AALoad)
+  }
+
+  // Calcul et stockage des arguments pour le Call
+  def args_compiling_storing(
+      args: List[S.BasicExpr],
+      funEnv: FunEnv,
+      env: Env
+  ): List[T.Instruction] = {
+    val (compile_instrs, _, compile_store) =
+      args.foldLeft((List[T.Instruction](), 2, List[T.Instruction]())) {
+        (acc, elt) =>
+          (
+            acc._1 ++ compile_basic_expr(elt, funEnv, env),
+            acc._2 + 1,
+            T.AStore(acc._2) :: acc._3
+          )
+      }
+    compile_instrs ++ compile_store
+  }
+
+  /* Remplit un tableau depuis la case i à partir d'une liste de String ou de BasicExpr, 
+     on suppose l'addrese du tableau au sommet de la pile */
+
   def fill_array_from(
       i: Integer,
       l: List[Any],
@@ -431,7 +406,7 @@ object Kontix2Javix {
     instructions
   }
 
-  // Gére le cas des primitives
+  // Gère le cas des primitives
   def handlePrim(
       p: PrimOp.T,
       args: List[S.BasicExpr],
@@ -475,5 +450,4 @@ object Kontix2Javix {
         ) ++ List(T.SCat)
     }
   }
-
 }

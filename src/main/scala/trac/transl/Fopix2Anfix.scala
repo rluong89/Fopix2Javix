@@ -1,7 +1,5 @@
 /* This module implements a translation from Fopix to Anfix */
 
-// TODO : To finish !!
-
 package trac.transl
 import scala.collection.immutable.Nil
 import trac.fopix.AST.Num
@@ -38,7 +36,7 @@ object Fopix2Anfix {
     }
   }
 
-  // Variable  count pour générer des noms de variables unique
+  // Variable count pour générer des noms de variables uniques
   var _count = 0
 
   // Permet de générer un nom de variable
@@ -48,7 +46,7 @@ object Fopix2Anfix {
     new_label
   }
 
-  // Gére le cas des primitives
+  // Gère le cas des primitives
   def prim(args: List[S.Expr], acc: List[T.SimplExpr], p: PrimOp.T): T.Expr = {
     args match {
       case Nil => T.Prim(p, acc)
@@ -63,7 +61,7 @@ object Fopix2Anfix {
     }
   }
 
-  // Gére les appels de fonctions
+  // Gère le cas des appels de fonctions
   def call(
       args: List[S.Expr],
       acc: List[T.SimplExpr],
@@ -105,8 +103,7 @@ object Fopix2Anfix {
       case Op(o, e1, e2) =>
         val trans_e1 = trans_expr(e1)
         val trans_e2 = trans_expr(e2)
-        if (BinOp.isCmp(o)) { handleBinOpCmp(trans_e1, trans_e2, o) }
-        else { handleBinOpArith(trans_e1, trans_e2, o) }
+        handleBinOp(trans_e1, trans_e2, o)
       case Prim(p, args) =>
         prim(args, List[T.SimplExpr](), p)
       case Call(f, args) =>
@@ -120,69 +117,56 @@ object Fopix2Anfix {
     }
   }
 
-  // Gére le cas des opérations arithmetiques
-  def handleBinOpArith(
-      trans_e1: T.Expr,
-      trans_e2: T.Expr,
-      o: BinOp.T
-  ): T.Expr = {
+  // Gère le cas des binop arithmétiques et de comparaisons
+  def handleBinOp(trans_e1: T.Expr, trans_e2: T.Expr, o: BinOp.T): T.Expr = {
     (trans_e1, trans_e2) match {
       case (T.Simple(se1), T.Simple(se2)) =>
-        T.Op(BinOp.toArith(o), se1, se2)
-      case (T.Simple(se), trans_e2) =>
-        val id = generateLabel()
-        val operation = T.Op(BinOp.toArith(o), se, T.Var(id))
-        T.Let(id, trans_e2, operation)
-      case (trans_e1, T.Simple(se)) =>
-        val id = generateLabel()
-        val operation = T.Op(BinOp.toArith(o), se, T.Var(id))
-        T.Let(id, trans_e1, operation)
-      case (trans_e1, trans_e2) =>
-        val id1 = generateLabel()
-        val id2 = generateLabel()
-        val operation = T.Op(BinOp.toArith(o), T.Var(id1), T.Var(id2))
-        val let2 = T.Let(id2, trans_e2, operation)
-        T.Let(id1, trans_e1, let2)
-
-    }
-  }
-
-  // Gére le cas des opérations de comparaison
-  def handleBinOpCmp(trans_e1: T.Expr, trans_e2: T.Expr, o: BinOp.T): T.Expr = {
-    (trans_e1, trans_e2) match {
-      case (T.Simple(se1), T.Simple(se2)) =>
+      if(BinOp.isCmp(o)) {
         T.If(
           (BinOp.toCmp(o), se1, se2),
           T.Simple(T.Num(1)),
           T.Simple(T.Num(0))
         )
+      } else {
+        T.Op(BinOp.toArith(o), se1, se2)
+      }
       case (T.Simple(se), trans_e2) =>
         val id = generateLabel()
-        val operation = T.If(
+        val operation = if (BinOp.isCmp(o)) {
+        T.If(
           (BinOp.toCmp(o), se, T.Var(id)),
           T.Simple(T.Num(1)),
           T.Simple(T.Num(0))
-        )
+        )} else {
+        T.Op(BinOp.toArith(o), se, T.Var(id))
+        }
         T.Let(id, trans_e2, operation)
       case (trans_e1, T.Simple(se)) =>
         val id = generateLabel()
-        val operation = T.If(
+        val operation = 
+          if(BinOp.isCmp(o)) {
+        T.If(
           (BinOp.toCmp(o), T.Var(id), se),
           T.Simple(T.Num(1)),
           T.Simple(T.Num(0))
         )
+          } else {
+            T.Op(BinOp.toArith(o), se, T.Var(id))
+          }
         T.Let(id, trans_e1, operation)
       case (trans_e1, trans_e2) =>
         val id1 = generateLabel()
         val id2 = generateLabel()
-        val operation = T.If(
+        val operation = if (BinOp.isCmp(o)) {T.If(
           (BinOp.toCmp(o), T.Var(id1), T.Var(id2)),
           T.Simple(T.Num(1)),
           T.Simple(T.Num(0))
         )
+        } else {
+          T.Op(BinOp.toArith(o), T.Var(id1), T.Var(id2))
+        }
         val let2 = T.Let(id2, trans_e2, operation)
         T.Let(id1, trans_e1, let2)
     }
   }
-
 }

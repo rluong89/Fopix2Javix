@@ -1,7 +1,4 @@
 /* This module implements a compiler from Fopix to Javix. */
-
-// TODO : To finish !!
-
 package trac.transl
 
 import java.util.UUID
@@ -9,7 +6,6 @@ import trac.fopix.AST
 import java.awt.Label
 
 object Fopix2Javix {
-
   import trac._
   import trac.PrimOp._
   import trac.BinOp._
@@ -18,10 +14,10 @@ object Fopix2Javix {
   // Label oups
   val oupsLabel = "oups"
 
-  // Environnement de ariables
+  // Environnement des variables
   type Env = Map[S.Ident, Int]
 
-  /* Environnement de fonction fid -> index de fonction */
+  /* Environnement des fonctions fid -> index de fonction */
   type FunEnv = Map[S.FunIdent, Int]
 
   // Permet de calculer le nombre de variables nécessaires
@@ -36,7 +32,7 @@ object Fopix2Javix {
     Math.max(pair._1, pair._2)
   }
 
-  // Permet de générer l'environnement de fonction + la liste des labels de fonctions
+  // Permet de générer l'environnement des fonctions + la liste des labels des fonctions
   def generateFunEnv(
       funEnv: FunEnv,
       list_label: List[String],
@@ -79,9 +75,9 @@ object Fopix2Javix {
   // Variable globale qui permet de générer l'environnement
   var count = 0
 
-  // Liste label de retours + call indirects
+  // Liste des label de retours + call indirects
   var return_labels = List[String]()
-  // Variable pour générer les index de retour + call indirects
+  // Variable pour générer les index de retour et call indirects
   var return_index = 1000
 
   // Fonction pour modifier count
@@ -102,7 +98,7 @@ object Fopix2Javix {
       case Nil =>
         val program_instructions =
           main_space ++ List(T.Return) ++ functions_space
-        /* Cas final on renvoie les accumulateur main_space et functions_space
+        /* Cas final on renvoie les accumulateurs main_space et functions_space
             avec le dispatch s'il y a des appels de fonctions */
         if (return_labels.length == 0) {
           program_instructions
@@ -159,7 +155,7 @@ object Fopix2Javix {
     }
   }
 
-  // Fonction pour générer des Labels unique
+  // Fonction pour générer des Labels uniques
   def generateLabel(s: String): String = {
     s + "_" + UUID.randomUUID().toString
   }
@@ -187,8 +183,8 @@ object Fopix2Javix {
     }
   }
 
-  // Permet de Store les arguments de fonction dans les variables JVM
-  def args_storing(
+  // Calcul et stockage des arguments pour le Call
+  def args_compiling_storing(
       args: List[S.Expr],
       funEnv: FunEnv,
       env: Env
@@ -223,7 +219,6 @@ object Fopix2Javix {
             T.Labelize(label_false)
           ) ++ compile_expr(e3, funEnv, env) ++
           List(T.Labelize(label_if_end))
-
       case S.Op(o, e1, e2) =>
         if (isArith(o)) {
           compile_expr(e1, funEnv, env) ++ List(T.Unbox) ++ compile_expr(
@@ -281,8 +276,8 @@ object Fopix2Javix {
           List(T.Push(current_return_index)) ++
           /* 3 compile E + unbox */
           goto_fid ++ List(T.Unbox) ++
-          /* 4 5 compil + Stocke les arguments (Pas sur) */
-          args_storing(args, funEnv, env) ++
+          /* 4 5 compilation et stockage des arguments */
+          args_compiling_storing(args, funEnv, env) ++
           List(T.Goto("dispatch")) ++
           List(T.Labelize(return_label)) ++
           restoration(archiving_indexes)
@@ -303,7 +298,6 @@ object Fopix2Javix {
               compile_expr(e3, funEnv, env) ++ List(T.AAStore, T.Push(0), T.Box)
           case (Tuple, _) =>
             val count = list.length
-
             val l = list.foldLeft((List[T.Instruction](), 0)) { (acc, elt) =>
               (
                 acc._1 ++ List(T.Dup, T.Push(acc._2)) ++ (compile_expr(
@@ -333,5 +327,4 @@ object Fopix2Javix {
         }
     }
   }
-
 }
