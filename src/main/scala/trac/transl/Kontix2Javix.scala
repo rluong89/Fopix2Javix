@@ -115,8 +115,7 @@ object Kontix2Javix {
       generateFunEnv(Map.empty, List[String](), definitions, 1000)
     //println(fun_index)
     //println(definitions)
-    println("FUN ENV : " + funEnv)
-    println("LIST LABEL : " + labelIndirectCall)
+
     val initKont = List(T.Push(funEnv("__RET")), T.Box, T.AStore(0))
     val initEnv = List(T.Push(0), T.ANewarray, T.AStore(1))
     val retKont = List(T.Labelize("__RET"), T.Return)
@@ -353,13 +352,23 @@ object Kontix2Javix {
 
       /* Richard */
       case S.BIf((o, be1, be2), e1, e2) =>
+        print("go bif")
+        val label_else = generateLabel("label_else")
+        val label_end = generateLabel("end")
+        compile_basic_expr(be1, funEnv, env) ++ List(T.Unbox) ++
+        compile_basic_expr(be2, funEnv, env) ++ List(T.Unbox, T.Ificmp(neg(o), label_else)) ++
+        compile_basic_expr(e1, funEnv, env) ++
+        List(T.Goto(label_end),T.Labelize(label_else)) ++
+        compile_basic_expr(e2, funEnv, env) ++ 
+        List(T.Labelize(label_end))
+
+      /*
         println(e)
         val label_true = generateLabel("booleantrue")
         val label_end = generateLabel("booleanend")
         val compile_cond =
           compile_basic_expr(be1, funEnv, env) ++ List(T.Unbox) ++
             compile_basic_expr(be2, funEnv, env) ++ List(
-              T.Unbox,
               T.Ificmp(o, label_true),
               T.Push(0),
               T.Goto(label_end),
@@ -379,6 +388,9 @@ object Kontix2Javix {
             T.Labelize(label_false)
           ) ++ compile_basic_expr(e2, funEnv, env) ++
           List(T.Labelize(label_if_end))
+          */
+
+      
       /* Richard */
       case S.Op(o, e1, e2) =>
         compile_basic_expr(e1, funEnv, env) ++ List(
