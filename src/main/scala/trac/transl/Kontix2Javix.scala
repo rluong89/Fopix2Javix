@@ -106,23 +106,17 @@ object Kontix2Javix {
   }
 
   def compile(progname: String, p: S.Program): T.Program = {
-    val varsize = 100
+
     val stacksize = 10000
     val env: Env = Map.empty
     val (definitions, tailexpr) = (p.defs, p.main)
-    //println(tailexpr)
     val (labelIndirectCall, funEnv) =
       generateFunEnv(Map.empty, List[String](), definitions, 1000)
-    //println(fun_index)
-    //println(definitions)
-    println("FUN ENV : " + funEnv)
-    println("LIST LABEL : " + labelIndirectCall)
     val initKont = List(T.Push(funEnv("__RET")), T.Box, T.AStore(0))
     val initEnv = List(T.Push(0), T.ANewarray, T.AStore(1))
     val retKont = List(T.Labelize("__RET"), T.Return)
     val compiledDefs =
       compile_definitions(definitions, env, funEnv, labelIndirectCall)
-    // println("INIT KONTENV :" + (initKont ++ initEnv))
     val mainInstrs =
       initKont ++ initEnv ++ compile_tail_expr(
         tailexpr,
@@ -135,7 +129,7 @@ object Kontix2Javix {
       T.Tableswitch(1000, labelIndirectCall, oupsLabel),
       T.Labelize(oupsLabel)
     )
-    // println(compiledDefs)
+    val varsize = computeVarSize(instrs)
     T.Program(progname, instrs, varsize, stacksize)
   }
 
@@ -153,7 +147,6 @@ object Kontix2Javix {
         val (store_instructions, extended_env) =
           store_env_args(formals_env, env)
         val extended_env_with_r = extended_env + (r -> 2)
-        // println("OUIPDPAJZDPOAJZDJAZO")
         val currentRes =
           List(T.Labelize(f)) ++ get_val_from_env(0) ++ List(T.AStore(0)) ++
             store_instructions ++ get_val_from_env(1) ++
@@ -177,9 +170,6 @@ object Kontix2Javix {
         }
         val old_count = count
         setCount(args.size + 2)
-        if (f.equals("map")) {
-          println("ENV MAP : " + env_fun)
-        }
         val function_instrs =
           List(T.Labelize(f)) ++ compile_tail_expr(e, funEnv, env_fun)
         // Plus de retour dispatch, swap
@@ -237,11 +227,10 @@ object Kontix2Javix {
       funEnv: FunEnv,
       env: Env
   ): List[T.Instruction] = {
-    val res = be match {
+    be match {
 
       /* Yassine */
       case S.Let(id, e1, e2) =>
-        //print("LET" + count)
         if (id.equals("_")) {
           val old_count = count
           val res = compile_basic_expr(e1, funEnv, env) ++ List(T.Pop) ++
@@ -261,7 +250,6 @@ object Kontix2Javix {
       /* Richard */
       case S.If((o, be1, be2), te1, te2) =>
         val label_else = generateLabel("label_else")
-        println("GROS IF")
         compile_basic_expr(be1, funEnv, env) ++ List(
           T.Unbox
         ) ++ compile_basic_expr(
@@ -303,7 +291,6 @@ object Kontix2Javix {
           funEnv,
           env
         )
-        //println("INTER : " + inter)
         List(
           T.Push(size),
           T.ANewarray,
@@ -319,9 +306,6 @@ object Kontix2Javix {
           fill_array_from(2, saves, funEnv, env) ++ List(T.AStore(1)) ++
           List(T.Push(funEnv(c)), T.Box, T.AStore(0)) ++ inter
     }
-    //  println("RES : " + res)
-    //println("EXPR : " + e)
-    res
   }
 
   def compile_basic_expr(
@@ -349,7 +333,6 @@ object Kontix2Javix {
           res
         } else {
           val current_count = count
-          // println(count)
           val new_env = (env + (id -> current_count))
           setCount(count + 1)
           val r = compile_basic_expr(e1, funEnv, env) ++ List(
@@ -361,7 +344,6 @@ object Kontix2Javix {
 
       /* Richard */
       case S.BIf((o, be1, be2), e1, e2) =>
-        println(e)
         val label_true = generateLabel("booleantrue")
         val label_end = generateLabel("booleanend")
         val compile_cond =
