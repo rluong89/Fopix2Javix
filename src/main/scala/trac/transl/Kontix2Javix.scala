@@ -7,6 +7,33 @@ import trac.kontix.AST
 import java.util.UUID
 import scala.collection.immutable
 import _root_.trac.javix.AST
+import trac.javix.AST.Labelize
+import trac.javix.AST.Comment
+import trac.javix.AST.Box
+import trac.javix.AST.Unbox
+import trac.javix.AST.Checkarray
+import trac.javix.AST.IPrint
+import trac.javix.AST.Push
+import trac.javix.AST.IOp
+import trac.javix.AST.Ificmp
+import trac.javix.AST.If
+import trac.javix.AST.Pop
+import trac.javix.AST.Swap
+import trac.javix.AST.Dup
+import trac.javix.AST.AStore
+import trac.javix.AST.ALoad
+import trac.javix.AST.IStore
+import trac.javix.AST.ILoad
+import trac.javix.AST.Goto
+import trac.javix.AST.ANewarray
+import trac.javix.AST.AAStore
+import trac.javix.AST.AALoad
+import trac.javix.AST.Return
+import trac.javix.AST.Tableswitch
+import trac.javix.AST.Ldc
+import trac.javix.AST.SCat
+import trac.javix.AST.SPrint
+import trac.javix.AST.Checkstring
 
 object Kontix2Javix {
 
@@ -52,11 +79,18 @@ object Kontix2Javix {
       case h :: t =>
         // A remanier pour les remises a 0
         val stackInfo = javix.AST.stackUse(h)
-        if (stackInfo.needed > currentStackUse) {
-          throw new Invalid("Problème de stack")
-        }
         val maxStack = Math.max(currentStackUse + stackInfo.max, maxStackUse)
-        computeStackUse(t, currentStackUse + stackInfo.delta, maxStackUse)
+        val newCurrentStack = h match {
+          case Goto("dispatch") => currentStackUse
+          case Goto(s) =>
+            if (s.startsWith("endbif")) { currentStackUse - 1 }
+            else { 0 }
+          case Labelize(_) => 0
+          case _ =>
+            currentStackUse + stackInfo.delta
+        }
+        computeStackUse(t, newCurrentStack, maxStack)
+
     }
   }
 
@@ -107,7 +141,6 @@ object Kontix2Javix {
 
   def compile(progname: String, p: S.Program): T.Program = {
 
-    val stacksize = 10000
     val env: Env = Map.empty
     val (definitions, tailexpr) = (p.defs, p.main)
     val (labelIndirectCall, funEnv) =
@@ -130,6 +163,7 @@ object Kontix2Javix {
       T.Labelize(oupsLabel)
     )
     val varsize = computeVarSize(instrs)
+    val stacksize = computeStackUse(instrs, 0, 0)
     T.Program(progname, instrs, varsize, stacksize)
   }
 
@@ -313,7 +347,7 @@ object Kontix2Javix {
       funEnv: FunEnv,
       env: Env
   ): List[T.Instruction] = {
-    val res = e match {
+    e match {
       /* Yassine */
       case S.Num(n) => List(T.Push(n), T.Box)
       case S.Str(s) => List(T.Ldc(s))
@@ -344,9 +378,8 @@ object Kontix2Javix {
 
       /* Richard */
       case S.BIf((o, be1, be2), e1, e2) =>
-        print("go bif")
-        val label_else = generateLabel("label_else")
-        val label_end = generateLabel("end")
+        val label_else = generateLabel("label_bifelse")
+        val label_end = generateLabel("endbif")
         compile_basic_expr(be1, funEnv, env) ++ List(T.Unbox) ++
           compile_basic_expr(be2, funEnv, env) ++ List(
             T.Unbox,
@@ -402,8 +435,6 @@ object Kontix2Javix {
       /* Yassine */
       case S.Prim(p, args) => handlePrim(p, args, funEnv, env)
     }
-    res
-
   }
 
   //we suppose that we have the array on top of the stack
