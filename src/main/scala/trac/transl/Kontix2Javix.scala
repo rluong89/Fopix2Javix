@@ -1,7 +1,5 @@
 /* This module implements a compiler from Kontix to Javix. */
 
-// TODO : To finish !!
-
 package trac.transl
 import trac.kontix.AST
 import java.util.UUID
@@ -48,9 +46,8 @@ object Kontix2Javix {
       maxStackUse: Int
   ): Int = {
     p match {
-      case Nil    => maxStackUse
+      case Nil => maxStackUse
       case h :: t =>
-        // A remanier pour les remises à 0
         val stackInfo = javix.AST.stackUse(h)
         val maxStack = Math.max(currentStackUse + stackInfo.max, maxStackUse)
 
@@ -378,7 +375,7 @@ object Kontix2Javix {
     compile_instrs ++ compile_store
   }
 
-  /* Remplit un tableau depuis la case i à partir d'une liste de String ou de BasicExpr, 
+  /* Remplit un tableau depuis la case i à partir d'une liste de String ou de BasicExpr,
      on suppose l'addrese du tableau au sommet de la pile */
 
   def fill_array_from(

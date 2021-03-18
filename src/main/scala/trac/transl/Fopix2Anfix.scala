@@ -121,35 +121,36 @@ object Fopix2Anfix {
   def handleBinOp(trans_e1: T.Expr, trans_e2: T.Expr, o: BinOp.T): T.Expr = {
     (trans_e1, trans_e2) match {
       case (T.Simple(se1), T.Simple(se2)) =>
-      if(BinOp.isCmp(o)) {
-        T.If(
-          (BinOp.toCmp(o), se1, se2),
-          T.Simple(T.Num(1)),
-          T.Simple(T.Num(0))
-        )
-      } else {
-        T.Op(BinOp.toArith(o), se1, se2)
-      }
+        if (BinOp.isCmp(o)) {
+          T.If(
+            (BinOp.toCmp(o), se1, se2),
+            T.Simple(T.Num(1)),
+            T.Simple(T.Num(0))
+          )
+        } else {
+          T.Op(BinOp.toArith(o), se1, se2)
+        }
       case (T.Simple(se), trans_e2) =>
         val id = generateLabel()
         val operation = if (BinOp.isCmp(o)) {
-        T.If(
-          (BinOp.toCmp(o), se, T.Var(id)),
-          T.Simple(T.Num(1)),
-          T.Simple(T.Num(0))
-        )} else {
-        T.Op(BinOp.toArith(o), se, T.Var(id))
+          T.If(
+            (BinOp.toCmp(o), se, T.Var(id)),
+            T.Simple(T.Num(1)),
+            T.Simple(T.Num(0))
+          )
+        } else {
+          T.Op(BinOp.toArith(o), se, T.Var(id))
         }
         T.Let(id, trans_e2, operation)
       case (trans_e1, T.Simple(se)) =>
         val id = generateLabel()
-        val operation = 
-          if(BinOp.isCmp(o)) {
-        T.If(
-          (BinOp.toCmp(o), T.Var(id), se),
-          T.Simple(T.Num(1)),
-          T.Simple(T.Num(0))
-        )
+        val operation =
+          if (BinOp.isCmp(o)) {
+            T.If(
+              (BinOp.toCmp(o), T.Var(id), se),
+              T.Simple(T.Num(1)),
+              T.Simple(T.Num(0))
+            )
           } else {
             T.Op(BinOp.toArith(o), se, T.Var(id))
           }
@@ -157,11 +158,12 @@ object Fopix2Anfix {
       case (trans_e1, trans_e2) =>
         val id1 = generateLabel()
         val id2 = generateLabel()
-        val operation = if (BinOp.isCmp(o)) {T.If(
-          (BinOp.toCmp(o), T.Var(id1), T.Var(id2)),
-          T.Simple(T.Num(1)),
-          T.Simple(T.Num(0))
-        )
+        val operation = if (BinOp.isCmp(o)) {
+          T.If(
+            (BinOp.toCmp(o), T.Var(id1), T.Var(id2)),
+            T.Simple(T.Num(1)),
+            T.Simple(T.Num(0))
+          )
         } else {
           T.Op(BinOp.toArith(o), T.Var(id1), T.Var(id2))
         }

@@ -195,16 +195,16 @@ object Anfix2Kontix {
     }
   }
 
-def simple_list_to_basic_list(l: List[S.SimplExpr]): List[T.BasicExpr] = {
+  def simple_list_to_basic_list(l: List[S.SimplExpr]): List[T.BasicExpr] = {
     l.map(e => compile_simple_to_basic(e))
   }
 
   // Récupère les variables des arguments
-def get_variables_from_args(args : List[S.SimplExpr]) : List[T.Ident] = {
-  args.foldLeft(List[T.Ident]()) { //à factoriser en une fonction
-    (acc, elt) => acc ++ get_variables_from_simple(elt)
+  def get_variables_from_args(args: List[S.SimplExpr]): List[T.Ident] = {
+    args.foldLeft(List[T.Ident]()) { //à factoriser en une fonction
+      (acc, elt) => acc ++ get_variables_from_simple(elt)
+    }
   }
-}
 
   // Récupère les variables des Expr
   def get_variables_from_expr(e: S.Expr): List[S.Ident] = {
