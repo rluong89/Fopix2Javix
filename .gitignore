@@ -1,2 +1,16 @@
 target/
+.bloop/
+.bsp/
+.metals/
+.scalafmt.conf
+.vscode/
+project/metals.sbt
+project/project
 project/build.properties
+*.kontix
+*.k
+*.fx
+*.j
+*.anfix
+*.fopix
+*.*~
